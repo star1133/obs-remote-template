@@ -64,7 +64,7 @@ try {
 
   // pair a phone through the setup page
   const pr = await (await post("/api/pair", { role: "owner" })).json(); if (process.env.TRACE) console.log("pair:", JSON.stringify(pr).slice(0, 200));
-  ok(/^\d{6}$/.test(pr.code) && pr.url.includes("#pair=") && pr.qr.n > 20, "setup page makes a pairing code, link and QR");
+  ok(/^[A-Z2-9]{12}$/.test(pr.code) && pr.url.includes("#pair=") && pr.qr.n > 20, "setup page makes a pairing code, link and QR");
   const pj = await (await fetch(RELAY + "/api/pair", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: pr.room, code: pr.code, name: "e2e phone" }) })).json();
   ok(!!pj.clientToken, "phone pairs with that code");
   const ph = await open(`${WS}/ws/client?room=${pr.room}`, ["obsr." + pj.clientToken]);

@@ -1113,9 +1113,12 @@ function switchActive(m) {
 }
 
 async function doPair(raw) {
-  const m = raw.trim().toLowerCase().match(/^([a-z2-7]{10})[\s.\-:#]*(\d{6})$/);
+  // Room (10 characters) then code (12 characters); dashes, spaces and case don't matter.
+  const flat = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const m = flat.match(/^([a-z2-7]{10})([a-z0-9]{12})$/);
   const err = $("#pairErr");
-  if (!m) { err.textContent = "That doesn't look right. Expected 10 letters then 6 digits."; return; }
+  if (!m) { err.textContent = "That doesn't look right. Expected the 22 characters shown under the QR code."; return; }
+  m[2] = m[2].toUpperCase();
   err.textContent = "";
   const ua = navigator.userAgent;
   const name = /iPad/.test(ua) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : "Browser";

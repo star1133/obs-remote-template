@@ -123,7 +123,7 @@ $("#btnCode").addEventListener("click", async () => {
     baseline = { n: cur.devices.length, online: cur.devices.filter((d) => d.online).length, at: Date.now() };
     $("#pairedMsg").hidden = true;
     drawQr(r.qr);
-    $("#code").textContent = `${r.room.toUpperCase()}-${r.code}`;
+    $("#code").textContent = `${r.room.toUpperCase()}-${r.code.match(/.{1,4}/g).join("-")}`;
     $("#link").value = r.url;
     expiresAt = r.exp;
     $("#pairBox").hidden = false;

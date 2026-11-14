@@ -52,11 +52,11 @@ obs.on("message", (raw, bin) => { if (!bin) { const m = JSON.parse(raw.toString(
 // ---- pairing ----
 obs.send(JSON.stringify({ type: "pair.request" }));
 const code = await next(obs, (m) => m.type === "pair.code");
-ok(/^\d{6}$/.test(code.code), "plugin receives a 6 digit pairing code");
+ok(/^[A-HJ-NP-Z2-9]{12}$/.test(code.code), "plugin receives a 12 character pairing code");
 
 const wrong = await post("/api/pair", { room: reg.json.room, code: code.code === "000000" ? "111111" : "000000" });
 ok(wrong.status === 400 && wrong.json.error === "bad_code", "wrong pairing code is refused");
-const paired = await post("/api/pair", { room: reg.json.room, code: code.code, name: "test" });
+const paired = await post("/api/pair", { room: reg.json.room, code: code.code.toLowerCase().match(/.{4}/g).join("-"), name: "test" });
 ok(paired.status === 200 && paired.json.clientToken, "correct code yields a client token");
 const reuse = await post("/api/pair", { room: reg.json.room, code: code.code });
 ok(reuse.status === 400, "pairing code is single use");
@@ -147,7 +147,7 @@ ok(frame.binary === 10, "binary preview frame reaches subscribed client");
 // ---- sharing: owners invite operators/viewers; viewers can only watch ----
 cl.send(JSON.stringify({ type: "invite", role: "viewer" }));
 const inv = await next(cl, (m) => m.type === "invite.code");
-ok(/^\d{6}$/.test(inv.code) && inv.role === "viewer", "owner can create a viewer invite");
+ok(/^[A-HJ-NP-Z2-9]{12}$/.test(inv.code) && inv.role === "viewer", "owner can create a viewer invite");
 const vp = await post("/api/pair", { room: reg.json.room, code: inv.code, name: "guest" });
 ok(vp.status === 200 && vp.json.role === "viewer", "invite code pairs a viewer");
 const vw = await open(`${wsBase}/ws/client?room=${reg.json.room}&token=${vp.json.clientToken}`);

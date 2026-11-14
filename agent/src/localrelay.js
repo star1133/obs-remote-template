@@ -22,7 +22,10 @@ const TYPES = { html: "text/html; charset=utf-8", js: "text/javascript; charset=
 const sha256 = (s) => createHash("sha256").update(s).digest("hex");
 const safeEqual = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && timingSafeEqual(x, y); };
 const randomHex = (n) => randomBytes(n).toString("hex");
-const randomCode = () => String(randomBytes(4).readUInt32BE() % 1_000_000).padStart(6, "0");
+// Pairing codes: 12 characters, no look-alikes (0/O, 1/I), about 60 bits. Shown as XXXX-XXXX-XXXX.
+const CODE_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const randomCode = () => Array.from(randomBytes(12), (b) => CODE_ABC[b % 32]).join("");
+const normCode = (c) => String(c ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 /** New room id (10 chars of base32) and device token for a fresh local install. */
 export function newIdentity() {
@@ -218,7 +221,7 @@ export function startLocalRelay({ stateFile, room, deviceToken, assets, port = 0
     if (now - fails.at > FAIL_WINDOW_MS) fails = { n: 0, at: now };
     if (fails.n >= FAIL_LIMIT) return json(res, 429, { error: "locked" });
     for (const c of Object.keys(pairs)) if (pairs[c].exp < now) delete pairs[c];
-    const match = Object.keys(pairs).find((c) => safeEqual(c, String(body.code ?? "")));
+    const match = Object.keys(pairs).find((c) => safeEqual(c, normCode(body.code)));
     if (!match) { fails.n++; return json(res, 400, { error: Object.keys(pairs).length ? "bad_code" : "no_code" }); }
     const role = pairs[match].role;
     delete pairs[match]; // single use

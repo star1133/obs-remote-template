@@ -42,10 +42,13 @@ function randomId(bytes: number): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+// Pairing codes: 12 characters, no look-alikes (0/O, 1/I), about 60 bits. Shown as XXXX-XXXX-XXXX.
+const CODE_ABC = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function randomCode(): string {
-  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
-  return String(n).padStart(6, "0");
+  return Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => CODE_ABC[b % 32]).join("");
 }
+/** What the user typed, without dashes or spaces, upper case. */
+const normCode = (c: unknown): string => String(c ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 function jres(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -130,7 +133,7 @@ export class Room extends DurableObject<Env> {
 
     const pairs = (await this.ctx.storage.get<Record<string, PairRec>>("pairs")) ?? {};
     for (const c of Object.keys(pairs)) if (pairs[c].exp < now) delete pairs[c];
-    const match = Object.keys(pairs).find((c) => safeEqual(c, String(code)));
+    const match = Object.keys(pairs).find((c) => safeEqual(c, normCode(code)));
     if (!match) {
       fails.n++;
       await this.ctx.storage.put({ fails, pairs });
