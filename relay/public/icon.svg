@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<defs>
+  <linearGradient id="plate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2d313d"/><stop offset=".55" stop-color="#171a22"/><stop offset="1" stop-color="#0b0c10"/></linearGradient>
+  <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".42"/><stop offset=".35" stop-color="#fff" stop-opacity=".06"/><stop offset="1" stop-color="#fff" stop-opacity=".16"/></linearGradient>
+  <linearGradient id="ring" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#f6f8fb"/><stop offset=".45" stop-color="#9aa1b3"/><stop offset=".62" stop-color="#d9dde6"/><stop offset="1" stop-color="#5b6070"/></linearGradient>
+  <radialGradient id="well" cx=".5" cy=".42" r=".7"><stop offset="0" stop-color="#1a1d26"/><stop offset="1" stop-color="#050609"/></radialGradient>
+  <radialGradient id="core" cx=".38" cy=".3" r=".85"><stop offset="0" stop-color="#ffb3a6"/><stop offset=".28" stop-color="#ff5a48"/><stop offset=".7" stop-color="#d4261d"/><stop offset="1" stop-color="#7c0f0b"/></radialGradient>
+  <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff3b2f" stop-opacity=".55"/><stop offset="1" stop-color="#ff3b2f" stop-opacity="0"/></radialGradient>
+  <linearGradient id="arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ffcf6e"/><stop offset="1" stop-color="#fff4d6"/></linearGradient>
+</defs>
+  <rect x="6" y="6" width="244" height="244" rx="58" fill="url(#plate)"/>
+  <rect x="7" y="7" width="242" height="242" rx="57" fill="none" stroke="url(#rim)" stroke-width="2"/>
+  <circle cx="112" cy="146" r="96" fill="url(#glow)"/>
+  <circle cx="112" cy="146" r="68" fill="url(#ring)"/>
+  <circle cx="112" cy="146" r="57" fill="url(#well)"/>
+  <circle cx="112" cy="146" r="40" fill="url(#core)"/>
+  <ellipse cx="99" cy="128" rx="17" ry="10" fill="#fff" opacity=".55" transform="rotate(-32 99 128)"/>
+  <circle cx="112" cy="146" r="57" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="2"/>
+  <g fill="none" stroke="url(#arc)" stroke-linecap="round">
+    <path d="M134.8321415520183 56.878210789119606 A92 92 0 0 1 201.7825653384157 125.92287467656001" stroke-width="12"/>
+    <path d="M158.3233854111277 39.65083938247504 A116 116 0 0 1 220.56403154664042 105.13618894008957" stroke-width="12" opacity=".6"/>
+  </g>
+</svg>

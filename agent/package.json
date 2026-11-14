@@ -1,0 +1,20 @@
+{
+  "name": "obs-remote-agent",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "Bridges OBS (obs-websocket v5) to the OBS Remote relay on Cloudflare",
+  "scripts": {
+    "test": "node test/e2e.mjs",
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "esbuild": "^0.25.0",
+    "postject": "^1.0.0-alpha.6",
+    "qrcode-generator": "^1.4.4",
+    "rcedit": "^5.0.2",
+    "ws": "^8.18.0"
+  }
+}

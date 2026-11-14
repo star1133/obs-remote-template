@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OBS Remote icons</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="gallery.css">
+</head>
+<body class="gallery">
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><filter id="ink-wobble" x="-6%" y="-6%" width="112%" height="112%"><feTurbulence type="fractalNoise" baseFrequency=".07" numOctaves="1" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.1" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+<header><h1>Icons</h1><p>One thin pen, round caps, open strokes. Ink is <code>currentColor</code>; the wobble is a filter, so every icon retints and scales cleanly.</p></header>
+<main>
+  <section><h2>Set</h2><div id="grid" class="grid"></div></section>
+  <section><h2>Sizes</h2><div id="sizes" class="row"></div></section>
+  <section><h2>Day paper / night ink</h2><div class="themes"><div class="paper" id="paper"></div><div class="night" id="night"></div></div></section>
+  <section><h2>Animated states</h2><div id="anim" class="row"></div></section>
+  <section><h2>Buttons</h2><div id="btns" class="row"></div></section>
+</main>
+<script type="module" src="gallery.js"></script>
+</body>
+</html>

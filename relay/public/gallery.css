@@ -1,0 +1,22 @@
+body.gallery { padding: 1.2em; max-width: 64em; margin: 0 auto; }
+.gallery header { margin-bottom: 1.4em; }
+.gallery h1 { font-size: 2em; letter-spacing: .06em; text-transform: uppercase; }
+.gallery header p { color: var(--dim); max-width: 40em; }
+.gallery code { font-family: var(--font-num); color: var(--ink); }
+.gallery section { margin-bottom: 2em; }
+.gallery h2 { font-size: .75em; letter-spacing: .18em; text-transform: uppercase; color: var(--dim); margin-bottom: .8em; border-bottom: 1px solid var(--line); padding-bottom: .5em; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.4em, 1fr)); gap: .5em; }
+.cell { border: 1px solid var(--line); border-radius: .6em; background: var(--panel); padding: .8em .4em .6em; display: grid; justify-items: center; gap: .5em; }
+.cell .ic { width: 2.4em; height: 2.4em; }
+.cell span { font: 500 .68em var(--font-num); color: var(--dim); }
+.row { display: flex; flex-wrap: wrap; gap: 1em 1.4em; align-items: center; }
+.themes { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
+.themes > div { display: flex; flex-wrap: wrap; gap: .8em; padding: 1em; border-radius: .7em; }
+.themes .ic { width: 1.8em; height: 1.8em; }
+.paper { background: #fdfcf8; color: #1c1c1c; }
+.night { background: #151a33; color: #d6dcf2; }
+.lab { display: grid; justify-items: center; gap: .4em; font: 500 .68em var(--font-num); color: var(--dim); }
+.lab .ic { width: 3.4em; height: 3.4em; color: var(--ink); }
+.lab .ic.anim { color: var(--live); }
+.lab .ch.bare { display: block; padding: 0; border: 0; }
+@media (max-width: 560px) { .themes { grid-template-columns: 1fr; } }

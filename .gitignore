@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.exe
+.claude/
+.wrangler/
+.dev.vars
+*.log
+relay/public/dl/
+agent/assets/preview-*.png
+.env

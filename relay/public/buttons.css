@@ -1,0 +1,48 @@
+/* My buttons: big colour tiles. --c is set per tile from script (no inline styles under the CSP). */
+.mb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5em, 1fr)); gap: .6em; }
+.mb-tile {
+  --c: #2c6cb4;
+  position: relative; display: grid; align-content: space-between; gap: .3em; min-height: 6.4em; padding: .7em .8em; text-align: left;
+  border: 0; border-radius: .8em; color: #fff; cursor: pointer;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--c) 78%, #fff 6%), color-mix(in srgb, var(--c) 52%, #000));
+  box-shadow: inset 0 1px 0 #ffffff40, 0 .25em .9em -.35em #000;
+  transition: transform .12s, filter .12s, box-shadow .12s;
+}
+.mb-tile:active { transform: scale(.97); }
+.mb-tile b { font-size: 1.02em; line-height: 1.2; overflow-wrap: anywhere; }
+.mb-tile small { font-size: .74em; opacity: .78; }
+.mb-ic { display: inline-grid; width: 1.9em; height: 1.9em; place-items: center; border-radius: 50%; background: #00000038; }
+.mb-ic .ic { width: 1.15em; height: 1.15em; }
+.mb-tile.off { filter: saturate(.35) brightness(.78); }
+.mb-tile.on { box-shadow: inset 0 1px 0 #ffffff55, 0 0 0 2px #fff, 0 0 1.2em -.1em var(--c); }
+.mb-tile.on::after { content: "ON"; position: absolute; top: .55em; right: .65em; font: 700 .62em/1 var(--font-num); letter-spacing: .08em; background: #fff; color: #111; border-radius: 99px; padding: .25em .55em; }
+.mb-tile.editing { outline: 2px dashed #ffffff90; outline-offset: -.25em; }
+.mb-tile:disabled { cursor: default; }
+.mb-new { --c: #444; background: transparent; box-shadow: inset 0 0 0 2px #ffffff30; align-content: center; justify-items: center; text-align: center; color: var(--dim, #aaa); }
+.mb-empty { grid-column: 1 / -1; color: var(--dim, #aaa); font-size: .92em; }
+
+.mb-dlg { width: min(34em, calc(100vw - 1.5em)); }
+.mb-dlg.mb-page { width: min(60em, calc(100vw - 1em)); min-height: 60dvh; }
+.mb-top { display: flex; align-items: center; gap: .5em; margin-bottom: .8em; }
+.mb-top h3 { margin: 0; }
+.grow { flex: 1; }
+.mb-f { display: grid; gap: .25em; margin: .55em 0; }
+.mb-f > span { font-size: .8em; color: var(--dim, #aaa); }
+.mb-dlg select, .mb-dlg input[type="text"], .mb-dlg input[type="number"] { width: 100%; min-height: 2.4em; background: var(--field, #1a1a1a); border: 1px solid var(--line2, #4f4f4f); border-radius: .4em; padding: 0 .6em; }
+.mb-dlg h4 { margin: 1em 0 .4em; font-size: .9em; color: var(--dim, #aaa); font-weight: 600; }
+.mb-sws { display: flex; flex-wrap: wrap; gap: .45em; }
+.mb-sw { --c: #2c6cb4; width: 2.1em; height: 2.1em; border-radius: 50%; padding: 0; background: var(--c); border: 2px solid transparent; }
+.mb-sw.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c); }
+.mb-prev { width: 10em; margin: .4em 0 .6em; }
+.mb-step { border: 1px solid var(--line2, #4f4f4f); border-radius: .6em; padding: .6em; margin: .5em 0; background: #00000022; }
+.mb-steph { display: flex; gap: .5em; align-items: center; }
+.mb-steph b { display: inline-grid; place-items: center; width: 1.7em; height: 1.7em; border-radius: 50%; background: var(--sel, #2c6cb4); flex: none; }
+.mb-x { min-width: 2.4em; }
+.mb-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(11em, 1fr)); gap: 0 .7em; }
+.mb-add { margin: .3em 0; }
+.mb-more { margin: .6em 0; }
+.mb-more summary { cursor: pointer; padding: .4em 0; color: var(--acc, #5aa2f0); }
+.mb-starters { display: grid; grid-template-columns: repeat(auto-fill, minmax(10em, 1fr)); gap: .5em; margin-top: .5em; }
+.mb-starter { display: flex; align-items: center; gap: .6em; text-align: left; min-height: 3em; }
+.mb-foot { display: flex; gap: .5em; align-items: center; margin-top: 1em; }
+.ez-mini { margin-left: .6em; font-size: .78em; padding: .25em .8em; border-radius: 99px; background: #ffffff12; border: 1px solid #ffffff26; color: inherit; }

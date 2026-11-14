@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en" data-layout="phone" data-detail="simple" data-size="m">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1c1c1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>OBS Remote</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="easy.css">
+<link rel="stylesheet" href="buttons.css">
+</head>
+<body>
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false"><filter id="ink-wobble" x="-6%" y="-6%" width="112%" height="112%"><feTurbulence type="fractalNoise" baseFrequency=".07" numOctaves="1" seed="7" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="1.1" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
+
+<!-- Pairing / connect screen -->
+<section id="pair" hidden>
+  <form id="pairForm" autocomplete="off">
+    <div class="mark" data-icon="logo"></div>
+    <h1>OBS Remote</h1>
+    <p class="lede">On the computer running OBS, open the <b>OBS Remote</b> setup page (double-click the program) and scan its QR code, or type the code shown there.</p>
+    <label for="pairInput">Pairing code</label>
+    <input id="pairInput" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCDEFGHIJ-123456" aria-describedby="pairErr">
+    <button class="primary" type="submit">Connect</button>
+    <p id="pairErr" class="err" role="alert"></p>
+    <button id="pairCancel" type="button" class="linklike" hidden>Cancel</button>
+    <a id="demoLink" href="?demo">Try the demo</a>
+  </form>
+</section>
+
+<!-- Main control surface, laid out like OBS Studio: monitors on top, docks below, status bar at the bottom -->
+<div id="app" hidden>
+  <header id="top">
+    <div class="id">
+      <span id="connDot" class="dot" data-s="off"></span>
+      <b id="obsName">OBS</b>
+      <span id="connTxt" class="dim">connecting</span>
+    </div>
+    <div class="badges">
+      <span id="bLive" class="badge live" hidden>LIVE <time>00:00:00</time></span>
+      <span id="bRec" class="badge rec" hidden>REC <time>00:00:00</time></span>
+    </div>
+    <button id="btnMine" class="modebtn" title="My buttons: make your own"><span data-icon="star"></span><span>Buttons</span></button>
+    <button id="btnPv" class="icon pvbtn" aria-label="Live preview" title="Live preview on/off (turn it off while streaming to save CPU)" aria-pressed="true"></button>
+    <button id="btnMode" class="modebtn" title="Switch to the simple Present view"><span data-icon="present"></span><span>Present</span></button>
+    <button id="btnDisplay" class="icon" aria-label="Settings" aria-haspopup="dialog"></button>
+  </header>
+
+  <div id="machines" class="mach" role="group" aria-label="Computers" hidden></div>
+
+  <div id="offline" role="status" hidden>OBS is not running on that computer &mdash; controls are paused</div>
+
+  <!-- Present mode: big buttons for presenting on a projector. Built by easy.js -->
+  <section id="easy" aria-label="Present">
+    <header class="ez-bar">
+      <button id="ezMode" class="ez-pill" title="Back to the OBS-style view"><span data-icon="sources"></span><span>OBS view</span></button>
+      <span class="ez-conn"><span id="ezDot" class="dot" data-s="off"></span><b id="ezName">OBS</b></span>
+      <span class="grow"></span>
+      <span id="ezLive" class="ez-badge live" hidden>LIVE</span>
+      <span id="ezRec" class="ez-badge rec" hidden>REC</span>
+      <button id="ezStudio" class="ez-pill ez-studio" aria-pressed="false" title="Look at the next screen first, then press TAKE"><span data-icon="studio"></span><span>Preview first</span></button>
+      <button id="ezPv" class="icon pvbtn" aria-label="Live preview" title="Live preview on/off (turn it off while streaming to save CPU)" aria-pressed="true"></button>
+      <button id="ezFull" class="icon" aria-label="Full screen"></button>
+      <button id="ezSettings" class="icon" aria-label="Settings"></button>
+    </header>
+
+    <div class="ez-stage" id="ezStage">
+      <figure class="ez-mon next" id="ezNextBox">
+        <figcaption><b>NEXT</b><span id="ezNextName"></span></figcaption>
+        <div class="ez-screen" id="ezScrB"><img id="ezImgB" alt="Next screen" draggable="false"><span class="off">no preview</span></div>
+      </figure>
+      <div class="ez-go" id="ezGo">
+        <button id="ezTake" class="ez-take"><span data-icon="take"></span><b>TAKE</b></button>
+        <button id="ezCut" class="ez-cut">CUT</button>
+      </div>
+      <figure class="ez-mon air" id="ezAirBox">
+        <figcaption><b>ON AIR</b><span id="ezAirName"></span></figcaption>
+        <div class="ez-screen" id="ezScrA"><img id="ezImgA" alt="Screen on air" draggable="false"><span class="off">no preview</span></div>
+      </figure>
+    </div>
+
+    <div class="ez-meter" id="ezMeter" aria-hidden="true"><i></i></div>
+
+    <section class="ez-block" aria-label="Screens">
+      <h2 class="ez-h">Screens <small id="ezHint"></small></h2>
+      <div class="ez-scenes" id="ezScenes" role="listbox" aria-label="Screens"></div>
+    </section>
+
+    <section class="ez-block" id="ezSlideBlock" aria-label="Slides">
+      <h2 class="ez-h">Slides <small>arrow keys / PageUp&middot;PageDown also work</small></h2>
+      <div class="ez-slides" id="ezSlides"></div>
+    </section>
+
+    <section class="ez-block" id="ezMineBlock" aria-label="My buttons">
+      <h2 class="ez-h">My buttons <small>anything in OBS, one tap</small><button type="button" id="ezMineAdd" class="ez-mini" hidden>+ New</button><button type="button" id="ezMineEdit" class="ez-mini" hidden>Edit</button></h2>
+      <div class="mb-grid" id="ezMine"></div>
+    </section>
+
+    <section class="ez-block" aria-label="Effect">
+      <h2 class="ez-h">Effect</h2>
+      <div class="ez-fx"><div id="ezFx" class="ez-chips" role="radiogroup" aria-label="Transition"></div><div id="ezDur" class="ez-chips" role="radiogroup" aria-label="Length"></div></div>
+    </section>
+
+    <details class="ez-block ez-out">
+      <summary>Stream &amp; record <span class="dim">(optional)</span></summary>
+      <div class="ez-outrow">
+        <button id="ezStream" class="ez-hold"></button>
+        <button id="ezRecord" class="ez-hold"></button>
+      </div>
+      <p class="hint" id="ezOutHint">Press and hold to start or stop.</p>
+    </details>
+  </section>
+
+  <main id="panels" data-tab="scenes">
+
+    <section class="panel" id="p-preview" data-tab="scenes" aria-label="Preview and program">
+      <div class="ph"><h2>Preview</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb">
+        <div class="mons" id="mons">
+          <figure class="mon pvw" id="monPvw" hidden>
+            <figcaption>Preview</figcaption>
+            <div class="screen" id="scrPvw"><img id="pvImgB" alt="Preview scene" draggable="false"><span class="off">no preview</span></div>
+          </figure>
+          <div class="xcol" id="xcol" hidden>
+            <button id="btnAuto" class="take">Transition</button>
+            <button id="btnCut" class="cut">Cut</button>
+          </div>
+          <figure class="mon pgm" id="monPgm">
+            <figcaption id="pgmCap">Program</figcaption>
+            <div class="screen" id="scrPgm"><img id="pvImg" alt="Program output" draggable="false"><span id="pvScene" class="pgm-tag"></span><span class="off" id="pvOff">no preview</span></div>
+          </figure>
+        </div>
+        <div class="studio" id="studioRow" hidden>
+          <div class="stages" id="stages" aria-live="off">
+            <div class="stg-top"><span id="stgNames" class="stg-names"></span><b id="stgPct" class="stg-pct">idle</b></div>
+            <div class="stg-bar" id="stgBar"><i class="stg-head"></i></div>
+          </div>
+          <div class="tbar-wrap">
+            <span class="tb-l">PGM</span>
+            <div id="tbar" class="tbar" role="slider" tabindex="0" aria-label="Manual transition (T-bar)" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i class="tb-fill"></i><i class="tb-knob"></i></div>
+            <span class="tb-r">PVW</span>
+          </div>
+          <button id="tbCancel" class="tb-cancel" hidden>Return T-bar to program</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-scenes" data-tab="scenes" aria-label="Scenes">
+      <div class="ph"><h2>Scenes</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb nopad"><div id="sceneGrid" class="list" role="listbox" aria-label="Scenes"></div></div>
+    </section>
+
+    <section class="panel" id="p-sources" data-tab="sources" aria-label="Sources">
+      <div class="ph"><h2>Sources</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb nopad">
+        <div id="sceneChips" class="chips full-only" role="tablist"></div>
+        <div id="srcList" class="list src-list"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="p-mixer" data-tab="audio" aria-label="Audio mixer">
+      <div class="ph"><h2>Audio Mixer</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb nopad"><div id="mixer" class="mixer"></div></div>
+    </section>
+
+    <section class="panel" id="p-switcher" data-tab="switch" aria-label="Scene transitions">
+      <div class="ph"><h2>Scene Transitions</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb">
+        <div class="form">
+          <label for="trSel">Transition</label>
+          <select id="trSel"></select>
+          <label for="durIn">Duration</label>
+          <span class="stepper"><button id="durDn" aria-label="Shorter">&minus;</button><input id="durIn" type="number" inputmode="numeric" min="0" max="20000" step="50" aria-label="Duration in ms"><button id="durUp" aria-label="Longer">+</button><span class="dim">ms</span></span>
+          <label>Quick</label>
+          <div id="fxRates" class="chips wrap" role="radiogroup" aria-label="Transition length"></div>
+        </div>
+        <div class="buses full-only">
+          <h3>Direct buses</h3>
+          <div class="bus pgm"><b>PGM</b><div id="busPgm" class="bus-btns"></div></div>
+          <div class="bus pvw"><b>PVW</b><div id="busPvw" class="bus-btns"></div></div>
+        </div>
+        <p id="swHint" class="hint"></p>
+      </div>
+    </section>
+
+    <section class="panel" id="p-live" data-tab="live" aria-label="Controls">
+      <div class="ph"><h2>Controls</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb">
+        <div class="out" id="outStream"><button class="obsbtn" data-k="btn"></button><div class="out-f dim" data-k="foot"></div></div>
+        <div class="out" id="outRecord"><div class="row"><button class="obsbtn" data-k="btn"></button><button class="obsbtn pause" data-k="pause"></button></div><div class="out-f dim" data-k="foot"></div></div>
+        <div class="out full-only" id="outReplay"><div class="row"><button class="obsbtn" data-k="btn"></button><button class="obsbtn" data-k="save"></button></div></div>
+        <button id="swStudio" class="obsbtn studio-btn" aria-pressed="false">Studio Mode</button>
+        <button id="btnSettings" class="obsbtn">Settings</button>
+        <span hidden><b data-k="state"></b><time data-k="tc"></time></span>
+      </div>
+    </section>
+
+    <section class="panel full-only" id="p-stats" data-tab="live" aria-label="Stats">
+      <div class="ph"><h2>Stats</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb"><div id="stats" class="stats"></div></div>
+    </section>
+
+    <section class="panel full-only" id="p-log" data-tab="live" aria-label="Activity log">
+      <div class="ph"><h2>Activity</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
+      <div class="pb"><ol id="log" class="log"></ol></div>
+    </section>
+
+  </main>
+
+  <footer id="status" aria-label="Status">
+    <span id="stLive" class="st-item" hidden><i class="led live"></i>LIVE: <time>00:00:00</time></span>
+    <span id="stRec" class="st-item" hidden><i class="led rec"></i>REC: <time>00:00:00</time></span>
+    <span id="stCpu" class="st-item"></span>
+    <span id="stNet" class="st-item full-only"></span>
+    <span id="stDrop" class="st-item full-only"></span>
+    <span class="grow"></span>
+    <span id="stLink" class="st-item dim"></span>
+  </footer>
+
+  <nav id="tabs" aria-label="Sections">
+    <button data-tab="scenes" data-icon="scenes" aria-current="page"><span>Scenes</span></button>
+    <button data-tab="switch" data-icon="switch"><span>Switch</span></button>
+    <button data-tab="audio" data-icon="audio"><span>Audio</span></button>
+    <button data-tab="sources" data-icon="sources"><span>Sources</span></button>
+    <button data-tab="live" data-icon="live"><span>Live</span></button>
+  </nav>
+</div>
+
+<dialog id="display" aria-label="Settings">
+  <form method="dialog">
+    <h3>Settings</h3>
+    <fieldset><legend>Open in</legend>
+      <div class="seg" data-pref="mode"><button type="button" data-v="obs">OBS view</button><button type="button" data-v="easy">Present view</button></div>
+      <p class="hint">Present view = big screen buttons, NEXT / ON AIR monitors and slide controls for presenting.</p>
+    </fieldset>
+    <fieldset id="presentBox"><legend>Present view: screens to show</legend>
+      <div id="sceneToggles" class="toggles"></div>
+      <button type="button" id="btnShowAll">Show all screens</button>
+      <p class="hint">Un-tick screens you never present. Numbers 1&ndash;9 follow what is shown. Saved on this device only.</p>
+    </fieldset>
+    <fieldset><legend>Live preview</legend>
+      <div class="seg" data-pref="preview"><button type="button" data-v="max">Max</button><button type="button" data-v="live">Live</button><button type="button" data-v="eco">Saver</button><button type="button" data-v="off">Off</button></div>
+      <p class="hint">Max: lowest delay and highest frame rate OBS can give, bigger pictures, every screen as fast as possible. It uses a lot of CPU and graphics-card power, so do not use it while streaming on one PC. Live: about 15 fps. Saver: about 2 fps, much lighter. Off: no pictures at all, so OBS spends nothing on previews. Use Off or Saver while streaming. The eye button in the top bar switches it quickly.</p>
+    </fieldset>
+    <fieldset><legend>Size</legend>
+      <div class="seg" data-pref="size"><button type="button" data-v="s">Compact</button><button type="button" data-v="m">Normal</button><button type="button" data-v="l">Large</button></div>
+    </fieldset>
+    <fieldset><legend>Controls</legend>
+      <div class="seg" data-pref="detail"><button type="button" data-v="auto">Auto</button><button type="button" data-v="simple">Simple</button><button type="button" data-v="full">Full</button></div>
+      <p class="hint">Full shows every audio source, exact dB entry, lock buttons, direct buses, stats and the activity log. Auto uses Full on tablets and computers.</p>
+    </fieldset>
+    <fieldset><legend>Layout</legend>
+      <div class="seg" data-pref="layout"><button type="button" data-v="auto">Auto</button><button type="button" data-v="phone">Tabs</button><button type="button" data-v="wide">Docks</button></div>
+    </fieldset>
+    <fieldset id="computers"><legend>Computers</legend>
+      <p class="hint">Control several OBS computers from this one screen. Switch between them, or turn on Mirror so a scene change, TAKE or slide flip also happens on the others.</p>
+      <button type="button" id="btnAddMachine">Add another computer</button>
+    </fieldset>
+    <fieldset id="shareBox" hidden><legend>Share access</legend>
+      <div class="inline"><select id="inviteRole" aria-label="Access level"><option value="operator">Can control</option><option value="viewer">View only</option></select><button type="button" id="btnInvite">Create invite</button></div>
+      <div id="inviteOut" class="invite" hidden><div class="code" id="inviteCode"></div><div class="inline"><input id="inviteLink" readonly aria-label="Invite link"><button type="button" id="btnCopyInvite">Copy</button></div><p class="hint" id="inviteHint"></p></div>
+      <ul id="deviceList" class="devs"></ul>
+    </fieldset>
+    <details class="diag"><summary>Diagnostics</summary>
+      <pre id="diagOut" tabindex="0"></pre>
+      <button type="button" id="btnCopyDiag">Copy diagnostics</button>
+    </details>
+    <div class="dlg-foot"><button type="button" id="btnForget" class="danger">Forget this computer</button><button class="primary">Done</button></div>
+  </form>
+</dialog>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
