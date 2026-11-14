@@ -123,7 +123,10 @@ $("#btnCode").addEventListener("click", async () => {
     baseline = { n: cur.devices.length, online: cur.devices.filter((d) => d.online).length, at: Date.now() };
     $("#pairedMsg").hidden = true;
     drawQr(r.qr);
-    $("#code").textContent = `${r.room.toUpperCase()}-${r.code.match(/.{1,4}/g).join("-")}`;
+    // Room on its own line, then the code in groups of four; typing ignores the dashes.
+    $("#code").replaceChildren(
+      Object.assign(document.createElement("span"), { className: "room", textContent: r.room.toUpperCase() }),
+      Object.assign(document.createElement("span"), { textContent: r.code.match(/.{1,4}/g).join("-") }));
     $("#link").value = r.url;
     expiresAt = r.exp;
     $("#pairBox").hidden = false;

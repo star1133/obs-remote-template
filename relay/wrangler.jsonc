@@ -20,7 +20,9 @@
   // Per-IP brakes on the two public endpoints that create work: new rooms and pairing guesses.
   "ratelimits": [
     { "name": "REG_LIMIT", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } },
-    { "name": "PAIR_LIMIT", "namespace_id": "1002", "simple": { "limit": 20, "period": 60 } }
+    { "name": "PAIR_LIMIT", "namespace_id": "1002", "simple": { "limit": 20, "period": 60 } },
+    // WebSocket connects (OBS and phones reconnecting); also caps strangers knocking on a room
+    { "name": "ROOM_LIMIT", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } }
   ],
   // SQLite-backed Durable Objects are available on the Workers Free plan
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }]

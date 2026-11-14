@@ -10,42 +10,25 @@
 <body>
 <main>
   <header>
+    <span class="tally" aria-hidden="true"></span>
     <h1>OBS Remote</h1>
     <span id="host" class="dim"></span>
   </header>
 
-  <section class="card" aria-label="Status">
+  <section class="block status" aria-label="Status">
     <div class="row"><span class="dot" id="obsDot"></span><b>OBS Studio</b><span id="obsTxt" class="dim">checking…</span></div>
-    <div class="row"><span class="dot" id="relDot"></span><b>Relay</b><span id="relTxt" class="dim">checking…</span></div>
+    <div class="row"><span class="dot" id="relDot"></span><b>Server</b><span id="relTxt" class="dim">checking…</span></div>
     <div class="row" id="tunRow" hidden><span class="dot" id="tunDot"></span><b>Public link</b><span id="tunTxt" class="dim"></span></div>
     <div class="row"><span class="dot" id="devDot"></span><b>Devices</b><span id="devTxt" class="dim"></span></div>
     <div id="help" class="help" hidden></div>
     <form id="pwForm" class="pw" hidden>
       <label for="pw">obs-websocket password</label>
       <div class="inline"><input id="pw" type="password" autocomplete="off" spellcheck="false"><button class="btn">Save</button></div>
-      <p class="dim">OBS → Tools → WebSocket Server Settings → Show Connect Info.</p>
+      <p class="dim small">OBS → Tools → WebSocket Server Settings → Show Connect Info.</p>
     </form>
   </section>
 
-  <section class="card" aria-label="Slides">
-    <label class="chk"><input id="presentKeys" type="checkbox"> Let paired devices flip PowerPoint / PDF pages (sends Page&nbsp;Up / Page&nbsp;Down to the window in front on this computer)</label>
-  </section>
-
-  <section class="card" aria-label="Connection mode" id="modeCard" hidden>
-    <h2>How phones reach this computer</h2>
-    <div class="seg" role="radiogroup" aria-label="Connection mode">
-      <button type="button" role="radio" data-mode="cloud" class="btn"><b id="modeCloudName">Online server</b><span>permanent link, works anywhere</span></button>
-      <button type="button" role="radio" data-mode="local" class="btn"><b>100% on this computer</b><span>free Cloudflare link, nothing goes through our server</span></button>
-    </div>
-    <p id="modeMsg" class="dim small"></p>
-  </section>
-
-  <section class="card" aria-label="Open">
-    <button id="btnOpen" class="btn primary wide">Open the control page</button>
-    <p class="dim small">Opens the web control page in your browser on this computer. Phones and tablets: use the QR code below.</p>
-  </section>
-
-  <section class="card" aria-label="Connect a device">
+  <section class="block connect" aria-label="Connect a device">
     <h2>Connect a phone or tablet</h2>
     <div class="inline">
       <select id="role" aria-label="Access level">
@@ -58,28 +41,42 @@
     <div id="pairBox" class="pairbox" hidden>
       <svg id="qr" role="img" aria-label="QR code to connect" shape-rendering="crispEdges"></svg>
       <div class="pairtxt">
-        <div class="dim">Scan with the camera, or type</div>
+        <div class="dim small-cap">Scan with the camera, or type</div>
         <div id="code" class="code"></div>
         <div class="inline"><input id="link" readonly aria-label="Link"><button id="btnCopy" class="btn">Copy link</button></div>
-        <div id="expiry" class="dim"></div>
+        <div id="expiry" class="dim small"></div>
       </div>
     </div>
     <p id="pairedMsg" class="ok" hidden></p>
     <p id="pairErr" class="err" role="alert"></p>
   </section>
 
-  <section class="card" aria-label="Devices">
+  <section class="block" aria-label="Open">
+    <button id="btnOpen" class="btn wide">Open the control page on this computer</button>
+  </section>
+
+  <section class="block" aria-label="Connection mode" id="modeCard" hidden>
+    <h2>How phones reach this computer</h2>
+    <div class="seg" role="radiogroup" aria-label="Connection mode">
+      <button type="button" role="radio" data-mode="cloud" class="btn"><b id="modeCloudName">Online server</b><span>permanent link, works anywhere</span></button>
+      <button type="button" role="radio" data-mode="local" class="btn"><b>100% on this computer</b><span>free Cloudflare link, changes on restart</span></button>
+    </div>
+    <p id="modeMsg" class="dim small"></p>
+  </section>
+
+  <section class="block" aria-label="Devices">
     <h2>Connected devices</h2>
     <ul id="devs" class="devs"></ul>
     <p id="noDevs" class="dim">No device has connected yet.</p>
   </section>
 
-  <section class="card" aria-label="App">
-    <div class="inline">
-      <button id="btnQuit" class="btn">Quit OBS Remote</button>
-      <button id="btnUninstall" class="btn danger">Uninstall…</button>
-    </div>
-    <p class="dim small">Quit stops everything until you open it again (tray icon or Start menu). Uninstall removes the program, the OBS dock and all pairings.</p>
+  <section class="block" aria-label="Slides">
+    <label class="chk"><input id="presentKeys" type="checkbox"><span>Let paired devices flip PowerPoint / PDF pages <span class="dim">(sends Page&nbsp;Up / Page&nbsp;Down to the window in front on this computer)</span></span></label>
+  </section>
+
+  <section class="block app" aria-label="App">
+    <button id="btnQuit" class="btn quiet">Quit OBS Remote</button>
+    <button id="btnUninstall" class="btn quiet danger">Uninstall…</button>
   </section>
 
   <footer class="dim"><span id="relayUrl"></span> · room <code id="room"></code></footer>

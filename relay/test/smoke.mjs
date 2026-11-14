@@ -38,8 +38,21 @@ const post = async (path, body, headers = {}) => {
 };
 
 // ---- register + OBS side ----
-const reg = await post("/api/register");
+// REG_KEY=... when the relay has REGISTRATION_KEY set: then room ids are signed and made-up rooms are refused.
+const KEY = process.env.REG_KEY;
+if (KEY) {
+  const nokey = await post("/api/register");
+  ok(nokey.status === 403, "register without the key is refused");
+}
+const reg = await post("/api/register", undefined, KEY ? { "x-registration-key": KEY } : {});
 ok(reg.status === 200 && reg.json.room?.length === 10, "register creates a room");
+if (KEY) {
+  const fake = reg.json.room.slice(0, 6) + (reg.json.room.slice(6) === "aaaa" ? "bbbb" : "aaaa");
+  const fp = await post("/api/pair", { room: fake, code: "AAAAAAAAAAAA" });
+  ok(fp.status === 400 && fp.json.error === "bad_room", "pairing with a made-up room is refused before the room is touched");
+  const fw = await open(`${wsBase}/ws/client?room=${fake}&token=x`).then(() => false, () => true);
+  ok(fw, "socket to a made-up room is refused");
+}
 
 const bad = await open(`${wsBase}/ws/obs?room=${reg.json.room}&token=nope`).then(() => false, () => true);
 ok(bad, "obs socket with wrong token is rejected");

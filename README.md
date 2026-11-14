@@ -93,6 +93,7 @@ cd agent && RELAY_URL=http://127.0.0.1:8787 node build.mjs
    - **โดเมนของคุณเอง:** เปิดบรรทัด `routes` ใน `relay/wrangler.jsonc` แล้วตั้ง `OBSR_DOMAIN=obs.example.com` ก่อนรัน
    - **ปล่อยไฟล์ติดตั้งบน GitHub Releases:** ตั้ง `OBSR_RELEASE_REPO=ชื่อบัญชี/ชื่อrepo` (ต้อง `gh auth login`) และใส่ `INSTALLER_URL` ใน `vars` ของ `relay/wrangler.jsonc` ให้ลิงก์ `/download/OBS-Remote-Setup.exe` พาไปที่ไฟล์นั้น
    - **จำกัดว่าใครสร้างห้องได้:** `npx wrangler secret put REGISTRATION_KEY` แล้ว build ตัวติดตั้งด้วย `REG_KEY=...`
+     เมื่อตั้งคีย์แล้ว เซิร์ฟเวอร์ไม่รับห้องใหม่ที่ไม่มีคีย์ และรหัสห้องจะมีลายเซ็นจากคีย์นั้น ห้องที่แต่งขึ้นมาจะถูกปฏิเสธก่อนถึง Durable Object จึงไม่กินโควตา (ห้องที่สร้างก่อนตั้งคีย์ใส่ไว้ใน `vars.LEGACY_ROOMS`)
 
 ภาพพรีวิวทุกภาพวิ่งผ่าน Durable Object ของคุณ ถ้ามีคนใช้เยอะ โควตาฟรีของ Cloudflare จะหมดเร็ว (ดู [ราคา Durable Objects](https://developers.cloudflare.com/durable-objects/platform/pricing))
 
