@@ -1,7 +1,7 @@
 // WebSocket link to the Cloudflare relay (/ws/obs). Reconnects forever with backoff.
 // A ping every PING_MS; nothing back for DEAD_MS after one means the link is dead (sleep, network change, a router
 // that dropped the session) even though no close arrived, so it is dropped and opened again at once.
-const PING_MS = 5000, DEAD_MS = 11000, CONNECT_MS = 15000;
+const PING_MS = 2500, DEAD_MS = 6000, CONNECT_MS = 15000;
 
 export function createRelayLink({ relay, room, token, onMessage, onUp, onDown, log = () => {} }) {
   const wsUrl = relay.replace(/^http/, "ws").replace(/\/+$/, "") + `/ws/obs?room=${room}`;

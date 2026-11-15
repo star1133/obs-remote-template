@@ -6,7 +6,7 @@ import qrcode from "qrcode-generator";
 import { SETUP_PORT } from "./config.js";
 import { ui } from "./ui/index.js";
 
-const { page, script, style, ytPage, ytScript, ytStyle } = ui;
+const { page, script, style } = ui;
 
 const HOSTS = new Set([`127.0.0.1:${SETUP_PORT}`, `localhost:${SETUP_PORT}`, `[::1]:${SETUP_PORT}`]);
 
@@ -16,6 +16,29 @@ function qrRows(text) {
   q.make();
   const n = q.getModuleCount();
   return { n, rows: Array.from({ length: n }, (_, y) => Array.from({ length: n }, (_, x) => (q.isDark(y, x) ? "1" : "0")).join("")) };
+}
+
+/** One field per line, tab-separated parts: easy to read for the native settings window (settings/settings.c). */
+const clean = (v) => String(v ?? "").replace(/[\t\r\n]+/g, " ");
+/** What the OBS dock shows now: one button that opens the settings window. */
+const DOCK_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="csrf" content="__CSRF__"><title>OBS Remote</title>
+<style>body{margin:0;padding:14px;background:#17171a;color:#ebeae6;font:13px/1.5 "Segoe UI",system-ui,sans-serif}
+button{width:100%;min-height:36px;border:0;border-radius:6px;background:#e8e6e0;color:#141416;font:600 14px "Segoe UI",sans-serif;cursor:pointer}
+p{color:#8f8e8a;margin:10px 0 0}</style></head><body><button id="b">Open OBS Remote</button>
+<p>Settings and the phone QR code are in their own window now. You can close this dock (also under Tools → OBS Remote).</p>
+<script src="/dock.js"></script></body></html>`;
+const DOCK_JS = `document.getElementById("b").addEventListener("click", () => fetch("/api/settings", { method: "POST", headers: { "x-obsr-csrf": document.querySelector("meta[name=csrf]").content } }));`;
+
+export function statusText(s) {
+  const b = (v) => (v ? 1 : 0);
+  const lines = [
+    "v=1", `host=${clean(s.host)}`, `obs=${clean(s.obs.state)}\t${clean(s.obs.detail)}`, `obsws=${b(s.obsWs?.enabled)}`,
+    `relay=${clean(s.relay.state)}\t${clean(s.relay.detail)}`, `url=${clean(s.relayUrl)}`, `mode=${clean(s.mode)}`, `canSwitch=${b(s.canSwitch)}`,
+    `cloudHost=${clean(s.cloudHost)}`, `hosted=${b(s.hosted)}`, `presentKeys=${b(s.presentKeys)}`, `started=${s.started}`, `room=${clean(s.room)}`,
+  ];
+  if (s.tunnel) lines.push(`tunnel=${clean(s.tunnel.state)}\t${clean(s.tunnel.url)}\t${clean(s.tunnel.detail)}`);
+  for (const d of s.devices) lines.push(`dev=${clean(d.cid)}\t${b(d.online)}\t${clean(d.role || "owner")}\t${d.created ?? 0}\t${clean(d.name)}`);
+  return lines.join("\n") + "\n";
 }
 
 export function openBrowser(url) {
@@ -30,9 +53,6 @@ export async function alreadyRunning() {
     return r.ok && (await r.json()).app === "obs-remote";
   } catch { return false; }
 }
-
-/** Origins of pages this server serves (the OBS browser source with /yt). */
-export const OWN_ORIGINS = new Set([...HOSTS].map((h) => "http://" + h));
 
 export function startSetupServer(api, { log, open }) {
   const csrf = randomBytes(16).toString("hex");
@@ -52,16 +72,18 @@ export function startSetupServer(api, { log, open }) {
     const url = new URL(req.url, "http://x");
     try {
       if (req.method === "GET") {
-        if (url.pathname === "/" || url.pathname === "/dock") return send(res, 200, page.replace("__CSRF__", csrf), "text/html");
+        if (url.pathname === "/") return send(res, 200, page.replace("__CSRF__", csrf), "text/html");
+        // The OBS dock used to show the whole page; settings now live in their own window, so the dock only opens it
+        // (a still page: no polling, nothing for OBS's browser to do).
+        if (url.pathname === "/dock") return send(res, 200, DOCK_PAGE.replace("__CSRF__", csrf), "text/html", "default-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'");
+        if (url.pathname === "/dock.js") return send(res, 200, DOCK_JS, "text/javascript");
         if (url.pathname === "/setup.js") return send(res, 200, script, "text/javascript");
         if (url.pathname === "/setup.css") return send(res, 200, style, "text/css");
-        // YouTube to OBS: the page the OBS browser source shows (see ytcast.js)
-        // inline styles allowed: OBS puts the source's Custom CSS in as a style tag (scripts stay locked down)
-        if (url.pathname === "/yt") return send(res, 200, ytPage, "text/html", "default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream:; frame-ancestors 'none'");
-        if (url.pathname === "/yt.js") return send(res, 200, ytScript, "text/javascript");
-        if (url.pathname === "/yt.css") return send(res, 200, ytStyle, "text/css");
         if (url.pathname === "/api/ping") return send(res, 200, { app: "obs-remote" });
         if (url.pathname === "/api/status") return send(res, 200, api.status());
+        if (url.pathname === "/api/status.txt") return send(res, 200, statusText(api.status()), "text/plain");
+        // The native settings window's token. Pages on other sites cannot read this answer (no CORS, Host checked).
+        if (url.pathname === "/api/token") return send(res, 200, csrf, "text/plain");
         return send(res, 404, { error: "not found" });
       }
       if (req.method !== "POST") return send(res, 405, { error: "method" });
@@ -75,7 +97,9 @@ export function startSetupServer(api, { log, open }) {
         const base = api.publicUrl().replace(/\/+$/, "");
         if (!base) throw new Error("The public link is not ready yet. Wait a few seconds and try again.");
         const link = `${base}${api.cfg.mode === "local" ? "/" : "/app"}#pair=${m.room}-${m.code}`;
-        return send(res, 200, { code: m.code, room: m.room, exp: m.exp, role: m.role, url: link, qr: qrRows(link) });
+        const qr = qrRows(link);
+        if (url.searchParams.get("fmt") === "txt") return send(res, 200, [`code=${m.code}`, `room=${m.room}`, `exp=${m.exp}`, `role=${m.role}`, `url=${link}`, `qr=${qr.n}`, ...qr.rows].join("\n") + "\n", "text/plain");
+        return send(res, 200, { code: m.code, room: m.room, exp: m.exp, role: m.role, url: link, qr });
       }
       if (url.pathname === "/api/open") { // "Open control page": pair this computer's browser and show the web UI
         const m = await api.pairCode("owner");
@@ -87,9 +111,7 @@ export function startSetupServer(api, { log, open }) {
       if (url.pathname === "/api/mode") { await api.switchMode(body.mode); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/uninstall") { send(res, 200, { ok: true }); api.uninstall(); return; }
       if (url.pathname === "/api/present-keys") { api.setPresentKeys(body.on === true); return send(res, 200, { ok: true }); }
-      if (url.pathname === "/api/yt-source") return send(res, 200, await api.addYtSource());
-      if (url.pathname === "/api/yt-open") { api.openYoutube(); return send(res, 200, { ok: true }); }
-      if (url.pathname === "/api/yt-extension") { api.openExtensionSetup(); return send(res, 200, { ok: true }); }
+      if (url.pathname === "/api/settings") { api.openSettings(); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/obs-password") { api.setObsPassword(typeof body.password === "string" ? body.password : ""); return send(res, 200, { ok: true }); }
       return send(res, 404, { error: "not found" });
     } catch (e) {
@@ -97,10 +119,8 @@ export function startSetupServer(api, { log, open }) {
     }
   });
 
-  // WebSockets: only the YouTube link (ytcast.js) uses one, and only from our own loopback names.
-  server.on("upgrade", (req, socket, head) => {
-    if (!HOSTS.has(req.headers.host ?? "") || !api.yt?.upgrade(req, socket, head)) socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
-  });
+  // No WebSockets on this page.
+  server.on("upgrade", (req, socket) => socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n"));
 
   return new Promise((resolve, reject) => {
     server.once("error", reject);

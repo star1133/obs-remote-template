@@ -610,7 +610,7 @@ export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () 
     start() { stopped = false; connectLoop(); },
     stop() { stopped = true; clearTimeout(retryTimer); clearTimeout(resyncTimer); stopTimers(); obs.c?.close(); },
     handleRelay,
-    /** A request to OBS from the agent itself (not from a phone, so no allowlist): "Add to OBS" for YouTube. */
+    /** A request to OBS from the agent itself (not from a phone, so no allowlist). */
     request: (type, data) => (obs.c?.ready ? obs.c.request(type, data) : Promise.reject(new Error("OBS is not connected."))),
     status: () => ({ ...status, obs: st ? st.obs : null }),
     /** Called when the relay link itself drops: pause expensive work, the relay forgets our demand. */

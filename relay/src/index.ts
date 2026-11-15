@@ -14,6 +14,9 @@ export interface Env {
   LEGACY_ROOMS?: string;
   /** Optional: where /download/OBS-Remote-Setup.exe sends people (e.g. your latest GitHub release asset). */
   INSTALLER_URL?: string;
+  /** Where new rooms are made ("apac", "weur", "enam", ...): near the people who use this relay, so every command
+   *  takes the shortest trip. Only affects rooms created after it is set. */
+  LOCATION_HINT?: string;
 }
 
 const ROOM_RE = /^[a-z2-7]{10}$/;
@@ -65,7 +68,8 @@ function randomToken(): string {
 }
 
 function roomStub(env: Env, room: string) {
-  return env.ROOM.get(env.ROOM.idFromName(room));
+  const hint = env.LOCATION_HINT as DurableObjectLocationHint | undefined;
+  return env.ROOM.get(env.ROOM.idFromName(room), hint ? { locationHint: hint } : undefined);
 }
 
 async function limited(rl: RateLimit | undefined, request: Request): Promise<boolean> {

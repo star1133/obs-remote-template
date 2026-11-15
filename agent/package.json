@@ -1,7 +1,6 @@
 {
   "name": "obs-remote-agent",
-  "version": "1.3.0",
-  "license": "MIT",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
   "description": "Bridges OBS (obs-websocket v5) to the OBS Remote relay on Cloudflare",

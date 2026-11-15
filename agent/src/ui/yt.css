@@ -1,5 +1,0 @@
-/* OBS browser source: transparent until a video arrives, then the video fills the source (letterbox stays clear). */
-html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
-video { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-video.ad { visibility: hidden; } /* a YouTube advert is playing in the tab */
-#msg { position: fixed; left: 1em; bottom: 1em; margin: 0; padding: .4em .7em; font: 20px system-ui, sans-serif; color: #fff; background: #000a; border-radius: .3em; }

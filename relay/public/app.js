@@ -119,7 +119,7 @@ const held = (ctl) => (holds.get(ctl) ?? 0) > performance.now();
 // A ping goes out every PING_MS. Nothing at all back for DEAD_MS after one means the connection is gone even if the
 // browser has not noticed (Wi-Fi to mobile data, a sleeping phone, a router that dropped the session). Counted from
 // the unanswered ping, so timers slowed down in a background tab do not look like a dead link.
-const PING_MS = 5000, DEAD_MS = 11000;
+const PING_MS = 2500, DEAD_MS = 6000;
 
 const link = {
   ws: null, tries: 0, hello: false, timer: 0, ping: 0, waitSince: 0, demo: null, auth: null, acks: 0, ackTimer: 0, probe: 0,

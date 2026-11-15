@@ -21,9 +21,7 @@ mkdirSync(dist, { recursive: true });
 const pub = join(root, "../relay/public");
 const assets = Object.fromEntries(readdirSync(pub).filter((f) => /\.(html|js|css|svg|webmanifest|png|ico)$/.test(f)).map((f) => [f, readFileSync(join(pub, f)).toString("base64")]));
 const uiFile = (f) => readFileSync(join(root, "src/ui", f), "utf8");
-const ui = { page: uiFile("setup.html"), script: uiFile("setup.js"), style: uiFile("setup.css"), ytPage: uiFile("yt.html"), ytScript: uiFile("yt.js"), ytStyle: uiFile("yt.css") };
-// The Chrome extension for "YouTube to OBS": the agent writes it out for Chrome's "Load unpacked".
-const extension = Object.fromEntries(readdirSync(join(root, "extension")).map((f) => [f, readFileSync(join(root, "extension", f)).toString("base64")]));
+const ui = { page: uiFile("setup.html"), script: uiFile("setup.js"), style: uiFile("setup.css") };
 
 // The OBS plugin (a 16 KB DLL that starts the agent with OBS). Rebuilt when MinGW gcc is on PATH, otherwise the
 // committed plugin/obs-remote.dll is used.
@@ -36,11 +34,24 @@ try {
 }
 const plugin = readFileSync(dll).toString("base64");
 
+// The native settings window (settings/settings.c). Rebuilt with MinGW gcc + windres when present, otherwise the
+// committed settings/obs-remote-settings.exe is used.
+const settingsDir = join(root, "settings");
+const settingsExe = join(settingsDir, "obs-remote-settings.exe");
+try {
+  execFileSync("windres", [join(settingsDir, "settings.rc"), "-O", "coff", "-o", join(settingsDir, "settings.res")], { cwd: settingsDir, stdio: "inherit" });
+  execFileSync("gcc", ["-O2", "-s", "-Wall", "-municode", "-mwindows", "-o", settingsExe, join(settingsDir, "settings.c"), join(settingsDir, "settings.res"), "-lwinhttp", "-ldwmapi", "-lshell32", "-lgdi32"], { stdio: "inherit" });
+} catch (e) {
+  if (e.code !== "ENOENT") throw e;
+  console.log("gcc/windres not found: using the committed settings/obs-remote-settings.exe");
+}
+const settings = readFileSync(settingsExe).toString("base64");
+
 await build({
   entryPoints: [join(root, "src/main.js")],
   outfile: join(dist, "obs-remote.cjs"),
   bundle: true, platform: "node", format: "cjs", target: "node24", minify: false, logLevel: "error",
-  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin), __EXTENSION__: JSON.stringify(extension) },
+  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin), __SETTINGS__: JSON.stringify(settings) },
 });
 
 writeFileSync(join(dist, "sea-config.json"), JSON.stringify({ main: join(dist, "obs-remote.cjs"), output: join(dist, "sea.blob"), disableExperimentalSEAWarning: true }));

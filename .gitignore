@@ -8,3 +8,4 @@ dist/
 relay/public/dl/
 agent/assets/preview-*.png
 .env
+agent/settings/settings.res

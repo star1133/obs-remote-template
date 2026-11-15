@@ -63,8 +63,15 @@ static bool port_open(unsigned short port) {
   return ok;
 }
 
+/** Tools → OBS Remote: the native settings window next to the agent; the local web page if it is missing. */
 static void open_settings(void *data) {
   (void)data;
+  wchar_t dir[MAX_PATH], exe[MAX_PATH + 32], args[24];
+  if (agent_dir(dir, MAX_PATH)) {
+    wsprintfW(exe, L"%s\\obs-remote-settings.exe", dir);
+    wsprintfW(args, L"--port=%u", setup_port());
+    if (GetFileAttributesW(exe) != INVALID_FILE_ATTRIBUTES && (INT_PTR)ShellExecuteW(NULL, L"open", exe, args, dir, SW_SHOWNORMAL) > 32) return;
+  }
   wchar_t url[40];
   wsprintfW(url, L"http://127.0.0.1:%u/", setup_port());
   ShellExecuteW(NULL, L"open", url, NULL, NULL, SW_SHOWNORMAL);
@@ -103,7 +110,7 @@ EXPORT bool obs_module_load(void) {
   ResumeThread(pi.hThread);
   CloseHandle(pi.hThread);
 
-  // Wait (at most 6 s) for the agent's page so the OBS Remote dock has something to show when OBS draws it.
+  // Wait (at most 6 s) for the agent's page, so an OBS Remote dock left from older versions has something to show.
   WSADATA wsa;
   if (WSAStartup(MAKEWORD(2, 2), &wsa) == 0) {
     unsigned short port = setup_port();

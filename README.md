@@ -11,34 +11,25 @@
    (เว็บ UI)            ลิงก์สาธารณะ, จับคู่ด้วย QR          (โปรแกรมเล็กๆ บนคอมที่เปิด OBS)          (obs-websocket ที่มีใน OBS อยู่แล้ว)
 ```
 
-ไม่ต้องใส่ไฟล์ปลั๊กอินเข้า OBS — ตัวติดตั้งตั้งค่า OBS ให้เอง และเพิ่ม **dock "OBS Remote"** ใน OBS (เมนู Docks) ที่แสดง QR/สถานะ
+ไม่ต้องใส่ไฟล์ปลั๊กอินเข้า OBS — ตัวติดตั้งตั้งค่า OBS ให้เอง ส่วนการตั้งค่า (QR, สถานะ, อุปกรณ์) อยู่ใน **หน้าต่าง OBS Remote** โปรแกรมเล็กๆ แยกจาก OBS (ไม่ใช่หน้าเว็บ ใช้แรมราว 20 MB) เปิดจาก OBS → Tools → OBS Remote (ไม่มีไอคอนบนเดสก์ท็อป เปิดแค่ OBS พอ)
 
 ## ใช้งาน (ผู้ใช้ทั่วไป) — 3 ขั้นตอน
 
-1. ดับเบิลคลิก **`OBS-Remote-Setup.exe`** (ปิด OBS ก่อนจะดีที่สุด)
+1. ดับเบิลคลิก **`OBS-Remote-Setup.exe`** ครั้งเดียว (ถ้า OBS เปิดอยู่ ตัวติดตั้งจะรอให้ปิดก่อน แล้วเปิด OBS ให้ใหม่ตอนเสร็จ)
    - ติดตั้งโปรแกรมที่ `%LOCALAPPDATA%\OBS Remote` และปลั๊กอิน OBS ที่ `%ProgramData%\obs-studio\plugins\obs-remote` (ไม่ต้องใช้สิทธิ์ admin)
-   - ปลั๊กอินเปิด OBS Remote พร้อม OBS และปิดตามเมื่อปิด OBS ไม่มีไอคอนข้างนาฬิกา ไม่เปิดพร้อม Windows (ถ้า OBS เปิดอยู่ ตัวติดตั้งจะรอให้ปิดก่อน แล้วเปิดให้ใหม่ตอนเสร็จ)
+   - ปลั๊กอินเปิด OBS Remote พร้อม OBS และปิดตามเมื่อปิด OBS ไม่มีไอคอนข้างนาฬิกา ไม่เปิดพร้อม Windows
    - เปิด WebSocket ของ OBS ให้ (ถ้าเปิดอยู่แล้วจะไม่แตะรหัสผ่านเดิม)
-   - เพิ่ม dock "OBS Remote" ใน OBS
-2. เปิด OBS → จะเห็น dock **OBS Remote** (ถ้าไม่เห็น: เมนู *Docks → OBS Remote*) แสดง QR
-3. ใช้กล้องมือถือสแกน QR → เปิดหน้าควบคุมได้เลย ทุกเครือข่าย (4G/ไวไฟอื่น) พอจับคู่สำเร็จ QR จะซ่อนเอง (กด "Add another device" เพื่อเพิ่มเครื่องอื่น)
+2. เปิด OBS แล้วเปิดหน้าต่าง **OBS Remote** (OBS → *Tools → OBS Remote*) → เลือกสิทธิ์ → **Show code**
+3. ใช้กล้องมือถือสแกน QR → เปิดหน้าควบคุมได้เลย ทุกเครือข่าย (4G/ไวไฟอื่น) พอจับคู่สำเร็จ QR จะซ่อนเอง
 
 แชร์ให้คนอื่น: ในหน้าควบคุม → ⚙ Settings → *Share access* → สร้างลิงก์ "ควบคุมได้" หรือ "ดูอย่างเดียว" (ใช้ได้ครั้งเดียว, 5 นาที) และกด Remove เพื่อถอนสิทธิ์ได้
 
-ถอนการติดตั้ง: Settings ของ Windows → Apps → OBS Remote หรือ `%LOCALAPPDATA%\OBS Remote\obs-remote.exe uninstall` (ลบปลั๊กอิน, dock และไฟล์ทั้งหมด)
-
-## YouTube เข้า OBS (ภาพจริงจากแท็บ Chrome)
-
-ส่วนขยาย Chrome ส่งภาพและเสียงของคลิป YouTube ที่เล่นอยู่ไปที่ Browser Source ใน OBS ผ่าน WebRTC ภายในเครื่อง ไม่ออกอินเทอร์เน็ต เปลี่ยนคลิปในแท็บแล้ว OBS เปลี่ยนตาม ถ้าเปิดหลายแท็บ OBS จะแสดงแท็บที่กดเล่นล่าสุด และจะซ่อนภาพกับปิดเสียงตอนโฆษณาเล่น
-1. ดับเบิลคลิก **YouTube to OBS** บนเดสก์ท็อป หรือกด **Open YouTube** ใน dock จะได้หน้าต่าง Chrome แยกที่มีส่วนขยายพร้อมแล้ว ไม่ต้องเปิด Developer mode (ต้องมี Google Chrome)
-   - อยากใช้ Chrome ตัวปกติของตัวเอง: กด **Use my own Chrome instead…** → เปิด Developer mode → **Load unpacked** → เลือกโฟลเดอร์ `%LOCALAPPDATA%\OBS Remote\chrome-extension`
-2. กด **Add to OBS**: จะเพิ่ม Browser Source ชื่อ "YouTube (Chrome)" ในซีน Preview (ถ้าเปิด Studio Mode) หรือซีนที่ออกอากาศอยู่ ถ้า OBS จับ Desktop Audio อยู่แล้ว ระบบจะปิดเสียงของ source นี้ไว้ เพื่อไม่ให้ได้ยินเสียงซ้อน
-3. เปิดคลิป YouTube ใน Chrome ความคมชัดใน OBS จะเท่ากับความละเอียดที่ YouTube เล่นอยู่
+ถอนการติดตั้ง: Settings ของ Windows → Apps → OBS Remote หรือ `%LOCALAPPDATA%\OBS Remote\obs-remote.exe uninstall` (ลบปลั๊กอิน ไอคอน และไฟล์ทั้งหมด) หรือกด *Uninstall…* ในหน้าต่าง OBS Remote
 
 ## แบบไม่ต้องมีบัญชี Cloudflare (ลิงก์ชั่วคราว)
 
 ดับเบิลคลิก **`build-installer.cmd`** แล้วเอา `OBS-Remote-Setup.exe` ไปติดตั้ง — ตัวโปรแกรมจะเป็น relay ของตัวเองบนคอมที่เปิด OBS และเปิดลิงก์สาธารณะด้วย Cloudflare Quick Tunnel (โหลด `cloudflared` ครั้งแรกอัตโนมัติ ~60 MB)
-- ลิงก์ (`xxxx.trycloudflare.com`) **เปลี่ยนทุกครั้งที่เปิด OBS ใหม่** ต้องสแกน QR ใหม่ (ปุ่ม *Open the control page* ใน dock เปิดหน้าเว็บบนคอมเครื่องนั้นได้เลย)
+- ลิงก์ (`xxxx.trycloudflare.com`) **เปลี่ยนทุกครั้งที่เปิด OBS ใหม่** ต้องสแกน QR ใหม่ (ปุ่ม *Open the control page on this computer* ในหน้าต่าง OBS Remote เปิดหน้าเว็บบนคอมเครื่องนั้นได้เลย)
 - ต้องเปิดคอมและโปรแกรมทิ้งไว้ ถ้าแอนตี้ไวรัสสแกน HTTPS (เช่น Avast Web Shield) อาจบล็อกอุโมงค์ — หน้า setup จะแจ้งสถานะ "Public link"
 - ยังไม่ได้ยืนยันปลายทางจริงว่าลิงก์สาธารณะเปิดหน้าเว็บได้ (ดูสรุปงาน)
 
@@ -58,7 +49,7 @@
 
 | ดูอะไร | ที่ไหน |
 |---|---|
-| OBS / Relay / จำนวนอุปกรณ์ | dock ใน OBS หรือ `http://127.0.0.1:47890/` บนคอมนั้น |
+| OBS / Relay / จำนวนอุปกรณ์ | หน้าต่าง OBS Remote หรือ `http://127.0.0.1:47890/` บนคอมนั้น |
 | สถานะจากบรรทัดคำสั่ง | `obs-remote.exe status` |
 | log ของ agent | `%LOCALAPPDATA%\OBS Remote\agent.log` |
 | log/diagnostics ฝั่งมือถือ | ⚙ Settings → Diagnostics → Copy |
@@ -66,8 +57,8 @@
 
 ปัญหาที่เจอบ่อย
 - **"waiting for OBS"** — OBS ยังไม่เปิด หรือ WebSocket ปิดอยู่ (OBS → Tools → WebSocket Server Settings → Enable)
-- **"wrong WebSocket password"** — ใส่รหัสผ่านที่ช่อง *obs-websocket password* ในหน้า setup
-- **ไม่เห็น dock** — ติดตั้งตอน OBS เปิดอยู่ ให้ปิด OBS แล้วรัน installer อีกครั้ง หรือ OBS → Docks → Custom Browser Docks → ชื่อ `OBS Remote`, URL `http://127.0.0.1:47890/dock`
+- **"wrong WebSocket password"** — ใส่รหัสผ่านที่ช่อง *obs-websocket password* ในหน้าต่าง OBS Remote
+- **ไม่เห็นเมนู Tools → OBS Remote** — ปลั๊กอินเริ่มทำงานตอนเปิด OBS ใหม่ ปิดแล้วเปิด OBS อีกครั้ง หรือดับเบิลคลิก `%LOCALAPPDATA%\OBS Remote\obs-remote.exe`
 - **มือถือเข้าไม่ได้ / หลุดบ่อย** — เปิด Settings → Diagnostics ดู `relay rtt` และ `reconnects`
 
 ## ความปลอดภัย (สรุป)
@@ -88,9 +79,8 @@
 cd relay && npm install && npx wrangler dev        # relay ที่ http://127.0.0.1:8787  (เปิด /?demo ดู UI)
 cd relay && npm test                               # ทดสอบ relay + โปรโตคอล
 cd agent && npm install && npm test                # agent ↔ OBS จำลอง ↔ relay
-cd agent && node test/dock.mjs                     # ทดสอบการเพิ่ม dock (ใช้ไฟล์ชั่วคราว)
-cd agent && node test/ytcast.mjs                   # YouTube เข้า OBS: สิทธิ์การเชื่อมต่อ + ปุ่ม Add to OBS (OBS จำลอง)
-cd agent && node test/yt-chrome.mjs                # YouTube จริงใน Chrome พร้อมส่วนขยาย → หน้า /yt (ต้องมีเน็ต)
+cd agent && node test/dock.mjs                     # ทดสอบการเขียน/ลบ dock เก่าใน config ของ OBS (ใช้ไฟล์ชั่วคราว)
+cd agent && node test/setup-api.mjs                # หน้าต่างตั้งค่าอ่านสถานะ/รหัสจับคู่ได้ และต้องมีโทเคน
 cd agent && RELAY_URL=http://127.0.0.1:8787 node build.mjs
 ```
 ทดสอบกับ OBS จริงแล้ว (OBS 33): snapshot ซีน/มิกเซอร์/ทรานซิชัน, Studio Mode, T-bar, พรีวิว, dock ใน OBS

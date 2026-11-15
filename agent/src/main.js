@@ -1,5 +1,5 @@
 // OBS Remote agent. Double-click = install. The OBS plugin it installs starts `run --hosted` with OBS and stops it with OBS.
-//   obs-remote.exe [install|run|uninstall|status|youtube] [--relay URL] [--key KEY] [--open]
+//   obs-remote.exe [install|run|uninstall|status] [--relay URL] [--key KEY] [--open]
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
@@ -8,8 +8,6 @@ import { basename, dirname, join } from "node:path";
 import { APP, BAKED, CONFIG_FILE, DIR, SETUP_PORT, enableObsWebSocket, loadConfig, readObsWsConfig, saveConfig, setObsDock } from "./config.js";
 import { chosenMode, ensureRegistered, runAgent } from "./agent.js";
 import { alreadyRunning, openBrowser } from "./setup-server.js";
-import { writeExtension } from "./ytcast.js";
-import { openYoutubeWindow } from "./ytwindow.js";
 
 const args = process.argv.slice(2);
 const cmd = args.find((a) => !a.startsWith("--"));
@@ -28,6 +26,9 @@ const STARTUP_VBS = join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Sta
 const PLUGIN_DIR = join(process.env.ProgramData || String.raw`C:\ProgramData`, "obs-studio", "plugins", "obs-remote");
 const PLUGIN_DLL = join(PLUGIN_DIR, "bin", "64bit", "obs-remote.dll");
 const PLUGIN = typeof __PLUGIN__ !== "undefined" ? __PLUGIN__ : "";
+// The native settings window (settings/settings.c, about 100 KB): inlined by build.mjs, written next to the agent.
+const SETTINGS = typeof __SETTINGS__ !== "undefined" ? __SETTINGS__ : "";
+const SETTINGS_EXE = join(DIR, "obs-remote-settings.exe");
 
 function log(...a) {
   const line = `${new Date().toISOString().replace("T", " ").slice(0, 19)} ${a.join(" ")}`;
@@ -49,6 +50,7 @@ function obsRunning() {
 
 function killAgents() {
   try { execFileSync("taskkill", ["/F", "/IM", EXE_NAME, "/FI", `PID ne ${process.pid}`], { stdio: "ignore", windowsHide: true }); } catch { /* none running */ }
+  try { execFileSync("taskkill", ["/F", "/IM", "obs-remote-settings.exe"], { stdio: "ignore", windowsHide: true }); } catch { /* not open */ }
 }
 
 function relayFromArgs() {
@@ -74,27 +76,22 @@ function registerWithWindows() {
   } catch { /* the program still works without the Apps list entry */ }
 }
 
-/** "YouTube to OBS" on the desktop and in the Start menu: one click opens YouTube in a window that feeds OBS. */
-const YT_LINK = "YouTube to OBS.lnk";
-const psQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
+/** Shortcuts earlier versions put on the desktop and in the Start menu. Everything is in OBS now (Tools → OBS Remote), so
+ *  installing removes them. */
+const LINKS = [["OBS Remote.lnk", "", ""], ["YouTube to OBS.lnk", "", ""]];
+const psQuote = (x) => `'${String(x).replace(/'/g, "''")}'`;
 function shortcuts(add) {
-  const each = add
-    ? `$l = $s.CreateShortcut($p); $l.TargetPath = ${psQuote(INSTALLED)}; $l.Arguments = 'youtube'; $l.IconLocation = ${psQuote(INSTALLED + ",0")}; $l.Description = 'YouTube in a window that shows in OBS'; $l.WindowStyle = 7; $l.Save()`
-    : `Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue`;
-  const ps = `$s = New-Object -ComObject WScript.Shell; foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) { $p = Join-Path $d ${psQuote(YT_LINK)}; ${each} }`;
+  const one = ([name, args, desc]) => add
+    ? `$l = $s.CreateShortcut((Join-Path $d ${psQuote(name)})); $l.TargetPath = ${psQuote(SETTINGS_EXE)}; $l.Arguments = ${psQuote(args)}; $l.IconLocation = ${psQuote(INSTALLED + ",0")}; $l.Description = ${psQuote(desc)}; $l.Save()`
+    : `Remove-Item -LiteralPath (Join-Path $d ${psQuote(name)}) -Force -ErrorAction SilentlyContinue`;
+  const ps = `$s = New-Object -ComObject WScript.Shell; foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) { ${LINKS.map(one).join("; ")} }`;
   try { execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: "ignore", windowsHide: true }); return true; } catch { return false; }
 }
 
-/** The YouTube window (see ytwindow.js). Started from a shortcut it hands over to a hidden copy, so no console stays open. */
-async function youtube() {
-  if (!flag("child")) {
-    spawn(process.execPath, [...(isSea() ? [] : [process.argv[1]]), "youtube", "--child"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    return;
-  }
-  try {
-    const extensionDir = writeExtension(join(DIR, "chrome-extension"));
-    await openYoutubeWindow({ extensionDir, profileDir: join(DIR, "youtube-browser"), log });
-  } catch (e) { log("youtube window: " + e.message); }
+function installSettings() {
+  if (!SETTINGS) return false;
+  writeFileSync(SETTINGS_EXE, Buffer.from(SETTINGS, "base64"));
+  return true;
 }
 
 function unregisterFromWindows() {
@@ -205,25 +202,26 @@ async function install() {
   const closedObs = await waitForObsToClose();
   installPlugin();
   say("     Installed the plugin: OBS Remote now starts and stops with OBS.");
+  if (installSettings()) say("     Installed the settings window: OBS → Tools → OBS Remote, or \"OBS Remote\" on the desktop.");
+  // YouTube to OBS (1.3) is gone: its Chrome profile and extension folder go too.
+  for (const old of ["youtube-browser", "chrome-extension"]) try { rmSync(join(DIR, old), { recursive: true, force: true }); } catch { /* still open */ }
   const ws = readObsWsConfig();
   if (ws?.enabled) say("     OBS WebSocket server is already on, leaving your settings alone.");
   else if (obsRunning()) say("     OBS is running, so its WebSocket setting can't be changed now.\n     In OBS: Tools → WebSocket Server Settings → enable the server.");
   else { enableObsWebSocket(); say("     Enabled the WebSocket server (port 4455) with a random password."); }
-  if (obsRunning()) say("     The OBS Remote dock could not be added while OBS is open (see below).");
-  else if (setObsDock(`http://127.0.0.1:${SETUP_PORT}/dock`)) say('     Added the "OBS Remote" dock to OBS (Docks menu).');
-  else say("     The OBS Remote dock is already in OBS.");
+  // Earlier versions put the whole settings page in an OBS browser dock; the native window replaces it.
+  if (!obsRunning() && setObsDock(null)) say("     Removed the old OBS Remote browser dock (settings have their own window now).");
 
   say("5/5  Adding OBS Remote to the Windows Apps list");
   registerWithWindows();
-  if (shortcuts(true)) say('     Added "YouTube to OBS" to the desktop and the Start menu.');
+  shortcuts(false); // nothing to open besides OBS: settings are under Tools → OBS Remote
 
   say();
   if (obsRunning()) {
     say("Done. Restart OBS to load OBS Remote.");
-    say(`To add the dock by hand: Docks → Custom Browser Docks → name "OBS Remote", URL http://127.0.0.1:${SETUP_PORT}/dock`);
   } else if (process.env.OBSR_NO_OBS !== "1" && startObs()) {
-    say(`Done. ${closedObs ? "Opening OBS again" : "Opening OBS"}: the QR code is in the OBS Remote dock (Docks → OBS Remote).`);
-  } else say("Done. Open OBS: the QR code is in the OBS Remote dock (Docks → OBS Remote, or Tools → OBS Remote).");
+    say(`Done. ${closedObs ? "Opening OBS again" : "Opening OBS"}: the QR code is under Tools → OBS Remote.`);
+  } else say("Done. Open OBS: the QR code is under Tools → OBS Remote.");
 }
 
 function uninstall() {
@@ -233,7 +231,7 @@ function uninstall() {
   if (removePlugin()) say("- removed the OBS plugin");
   else say("- OBS is open: the plugin is switched off and its folder goes after the next uninstall or reinstall");
   unregisterFromWindows(); say("- removed the Apps list entry");
-  shortcuts(false); say('- removed the "YouTube to OBS" shortcuts');
+  shortcuts(false); say("- removed the desktop and Start menu shortcuts");
   if (obsRunning()) say("- OBS is open: remove the OBS Remote dock yourself (Docks → Custom Browser Docks)");
   else if (setObsDock(null)) say("- removed the OBS dock");
   if (flag("keep-data")) say(`- kept ${DIR}`);
@@ -296,18 +294,18 @@ try {
     process.exit(0);
   }
   else if (cmd === "status") { await status(); process.exit(0); }
-  else if (cmd === "youtube") { await youtube(); process.exit(0); }
   else if (!cmd) {
     // Double-click: installed copy opens the setup page, anything else installs.
     if (existsSync(INSTALLED) && basename(process.execPath).toLowerCase() === EXE_NAME) {
-      if (await alreadyRunning()) openBrowser(`http://127.0.0.1:${SETUP_PORT}/`);
+      if (existsSync(SETTINGS_EXE)) spawn(SETTINGS_EXE, [], { detached: true, stdio: "ignore" }).unref();
+      else if (await alreadyRunning()) openBrowser(`http://127.0.0.1:${SETUP_PORT}/`);
       else { say("OBS Remote runs inside OBS. Open OBS, then Docks → OBS Remote (or Tools → OBS Remote)."); await pause(); }
       process.exit(0);
     }
     await install();
     await pause();
     process.exit(0);
-  } else { say("usage: obs-remote [install | run | open | quit | uninstall | status | youtube] [--cloud | --local] [--relay URL] [--key KEY]"); process.exit(1); }
+  } else { say("usage: obs-remote [install | run | open | quit | uninstall | status] [--cloud | --local] [--relay URL] [--key KEY]"); process.exit(1); }
 } catch (e) {
   say(`\nSomething went wrong: ${e.message}`);
   log("fatal:", e.stack || e);

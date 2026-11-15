@@ -10,10 +10,8 @@ import { startTray } from "./tray.js";
 import { createBridge, cleanLayout } from "./bridge.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRelayLink } from "./relay.js";
-import { OWN_ORIGINS, startSetupServer } from "./setup-server.js";
-import { addYtSource, createYtHub, writeExtension } from "./ytcast.js";
-import { findBrowser } from "./ytwindow.js";
-import { isSea } from "node:sea";
+import { startSetupServer } from "./setup-server.js";
+import { existsSync } from "node:fs";
 
 /** Create the room on the relay once and remember the device token. */
 export async function register(relay, key) {
@@ -104,10 +102,6 @@ export async function runAgent({ log = console.log, open = false, notify = false
       picturesTimer ??= setTimeout(() => { picturesTimer = null; try { writeFileSync(picturesFile, JSON.stringify(picturesNext)); } catch { /* next change retries */ } }, 5000);
     },
   };
-  // YouTube to OBS: the Chrome extension's files, kept up to date for "Load unpacked", and the link to OBS's /yt page.
-  const extensionDir = join(DIR, "chrome-extension");
-  try { writeExtension(extensionDir); } catch (e) { log("could not write the Chrome extension: " + e.message); }
-  const yt = createYtHub({ log, playerOrigins: OWN_ORIGINS });
   const bridge = createBridge({ getObsConf, send: (m) => link.send(m), log, allowKeys: () => loadConfig().presentKeys === true, layout, pictures });
   link = createRelayLink({
     relay: linkRelay, room: cfg.room, token: cfg.deviceToken, log,
@@ -122,22 +116,11 @@ export async function runAgent({ log = console.log, open = false, notify = false
 
   const api = {
     cfg,
-    yt,
-    /** "Add to OBS": the YouTube browser source in the scene being prepared. */
-    async addYtSource() {
-      const r = await addYtSource(bridge.request, `http://127.0.0.1:${SETUP_PORT}/yt`);
-      log(`youtube source: ${r.already ? "already in" : "added to"} ${r.scene}${r.muted ? " (muted: Desktop Audio already has the sound)" : ""}`);
-      return r;
-    },
-    /** "Open YouTube": the browser window with the extension already in it (main.js youtube). */
-    openYoutube() {
-      if (!findBrowser()) throw new Error("Install Google Chrome first.");
-      spawn(process.execPath, [...(isSea() ? [] : [process.argv[1]]), "youtube", "--child"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
-    },
-    /** Opens Chrome's extensions page and the folder to pick for "Load unpacked" (for people who want it in their own Chrome). */
-    openExtensionSetup() {
-      try { spawn("explorer.exe", [extensionDir], { detached: true, stdio: "ignore" }).unref(); } catch { /* the page shows the path too */ }
-      try { spawn("cmd", ["/c", "start", "", "chrome", "chrome://extensions/"], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } catch { /* Chrome missing: the user opens it */ }
+    /** The native settings window (settings/settings.c), next to this program. */
+    openSettings() {
+      const exe = join(DIR, "obs-remote-settings.exe");
+      if (!existsSync(exe)) throw new Error("The settings window is missing; run the installer again.");
+      spawn(exe, [`--port=${SETUP_PORT}`], { detached: true, stdio: "ignore" }).unref();
     },
     publicUrl,
     /** Address for a browser on this same computer: no tunnel needed. */
@@ -160,7 +143,6 @@ export async function runAgent({ log = console.log, open = false, notify = false
         obsWs: f ? { enabled: f.enabled, port: f.port, auth: f.auth } : null,
         customPassword: loadConfig().obsPassword != null,
         presentKeys: loadConfig().presentKeys === true,
-        yt: { ...yt.status(), folder: extensionDir },
       };
     },
     /** Ask the relay for a pairing code; the answer arrives as a `pair.code` message. */
@@ -201,7 +183,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
       try { onUninstall(); } catch (e) { log("uninstall: " + e.message); }
       setTimeout(() => { api.stop(); process.exit(0); }, 200);
     },
-    stop() { tray?.stop(); yt.stop(); bridge.stop(); link.stop(); tunnel?.stop(); local?.stop(); server?.close(); },
+    stop() { tray?.stop(); bridge.stop(); link.stop(); tunnel?.stop(); local?.stop(); server?.close(); },
   };
 
   bridge.start();
