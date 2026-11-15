@@ -72,9 +72,11 @@ export async function runAgent({ log = console.log, open = false, notify = false
   let devices = [];
   let local = null, tunnel = null, tray = null, linkRelay = cfg.relay;
   if (cfg.mode === "local") {
-    local = await startLocalRelay({ stateFile: join(DIR, "relay-state.json"), room: cfg.room, deviceToken: cfg.deviceToken, assets: loadAssets(), log });
+    // A fixed port, so a tunnel left running by the last run (it outlives OBS) still points at us and keeps its link.
+    const relayOpts = { stateFile: join(DIR, "relay-state.json"), room: cfg.room, deviceToken: cfg.deviceToken, assets: loadAssets(), log };
+    local = await startLocalRelay({ ...relayOpts, port: SETUP_PORT + 1 }).catch(() => startLocalRelay(relayOpts));
     linkRelay = local.url;
-    if (process.env.OBSR_NO_TUNNEL !== "1") { tunnel = createTunnel({ dir: DIR, port: local.port, log }); tunnel.start(); }
+    if (process.env.OBSR_NO_TUNNEL !== "1") { tunnel = createTunnel({ dir: DIR, port: local.port, metricsPort: SETUP_PORT + 2, log }); tunnel.start(); }
   }
   /** The address phones use: the Cloudflare relay, or this computer's tunnel ("" until it is up). */
   const publicUrl = () => (cfg.mode === "local" ? tunnel?.url() || (process.env.OBSR_NO_TUNNEL === "1" ? local.url : "") : cfg.relay);
@@ -168,6 +170,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
       if (mode !== "cloud" && mode !== "local") throw new Error("bad mode");
       if (mode === cfg.mode) return;
       await ensureRegistered({ mode }); // registers (cloud) or makes an identity (local) before we stop
+      if (mode === "cloud") tunnel?.close(); // phones use the online server now
       log("switching to " + mode);
       setTimeout(() => {
         try { spawn(process.execPath, ["run", "--wait", ...restartArgs], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } catch (e) { log("restart failed: " + e.message); }
@@ -181,12 +184,14 @@ export async function runAgent({ log = console.log, open = false, notify = false
     /** Quit the whole system (menu "Quit" in the tray icon). */
     quit(opts = {}) {
       log("quit requested from the tray");
+      tunnel?.close();
       try { onQuit(opts); } catch { /* best effort */ }
       setTimeout(() => { api.stop(); process.exit(0); }, 150);
     },
     /** Hand over to the uninstaller (it waits for us to leave, then removes everything). */
     uninstall() {
       log("uninstall requested");
+      tunnel?.close();
       try { onUninstall(); } catch (e) { log("uninstall: " + e.message); }
       setTimeout(() => { api.stop(); process.exit(0); }, 200);
     },

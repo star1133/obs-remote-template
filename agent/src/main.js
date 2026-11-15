@@ -6,6 +6,7 @@ import { createInterface } from "node:readline";
 import { isSea } from "node:sea";
 import { basename, dirname, join } from "node:path";
 import { APP, BAKED, CONFIG_FILE, DIR, SETUP_PORT, enableObsWebSocket, loadConfig, readObsWsConfig, saveConfig, setObsDock } from "./config.js";
+import { closeLeftoverTunnel } from "./tunnel.js";
 import { chosenMode, ensureRegistered, runAgent } from "./agent.js";
 import { alreadyRunning, openBrowser } from "./setup-server.js";
 
@@ -239,6 +240,7 @@ async function install() {
 function uninstall() {
   say(`Removing ${APP}\n`);
   killAgents();
+  closeLeftoverTunnel(DIR); // it outlives OBS on purpose (same link next time), so it goes here
   removeOldVersionBits();
   if (removePlugin()) say("- removed the OBS plugin");
   else say("- OBS is open: the plugin is switched off and its folder goes after the next uninstall or reinstall");
@@ -299,7 +301,7 @@ try {
   if (cmd === "run") await run();
   else if (cmd === "install") { await install(); await pause(); process.exit(0); }
   else if (cmd === "uninstall") { uninstall(); if (!flag("quiet")) await pause(); process.exit(0); }
-  else if (cmd === "quit") { killAgents(); say("OBS Remote stopped."); process.exit(0); }
+  else if (cmd === "quit") { killAgents(); closeLeftoverTunnel(DIR); say("OBS Remote stopped."); process.exit(0); }
   else if (cmd === "open") { // Start menu entry: make sure it runs, then show the settings page
     if (!(await alreadyRunning())) { startHidden(); await waitFor(alreadyRunning, 8000); }
     openBrowser(`http://127.0.0.1:${SETUP_PORT}/`);
