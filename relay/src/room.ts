@@ -24,7 +24,13 @@ interface PairRec {
   role: Role;
 }
 
-type Attachment = { role: "obs" } | { role: "client"; cid: string; preview: boolean; thumbs?: boolean; live?: boolean; max?: boolean; perm: Role };
+type Attachment = { role: "obs" } | { role: "client"; cid: string; preview: boolean; thumbs?: boolean; live?: boolean; max?: boolean; acks?: boolean; perm: Role };
+
+// Flow control for preview frames: a phone that acknowledges frames ("a<n>") gets at most WINDOW unacknowledged
+// ones. A slow phone then gets fewer frames instead of a queue that grows on the relay until the object resets
+// and every connection drops. A phone that stopped acknowledging for STALL_MS starts over (lost acks, old tab).
+const WINDOW = 12;
+const STALL_MS = 3000;
 
 async function sha256Hex(s: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
@@ -58,6 +64,7 @@ function jres(body: unknown, status = 200): Response {
 export class Room extends DurableObject<Env> {
   // Token buckets live in memory only; losing them on hibernation just resets the budget.
   private buckets = new WeakMap<WebSocket, { tokens: number; at: number }>();
+  private inflight = new WeakMap<WebSocket, { n: number; at: number }>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -201,12 +208,30 @@ export class Room extends DurableObject<Env> {
     if (typeof message !== "string") {
       // Preview frames from OBS go only to clients that asked for them.
       if (att.role !== "obs" || message.byteLength > MAX_BINARY) return;
-      const thumb = new Uint8Array(message)[0] === 2;
+      const ch = new Uint8Array(message)[0];
+      const thumb = ch === 2 || ch === 3;
+      const now = Date.now();
       for (const c of this.clientSockets()) {
         const a = c.deserializeAttachment() as Attachment;
-        // Channel 2 = scene thumbnails, only for clients in Present mode.
-        if (a.role === "client" && a.preview && (!thumb || a.thumbs)) c.send(message);
+        // Channels 2 and 3 = scene pictures, only for clients in Present mode.
+        if (a.role !== "client" || !a.preview || (thumb && !a.thumbs)) continue;
+        if (a.acks) {
+          const f = this.inflight.get(c) ?? { n: 0, at: now };
+          if (f.n >= WINDOW && !thumb) { // thumbnails are rare and never re-sent, so they always go
+            if (now - f.at < STALL_MS) continue;
+            f.n = 0; // no ack for a while: lost acks or a sleeping tab, start over
+          }
+          if (f.n === 0) f.at = now;
+          f.n++;
+          this.inflight.set(c, f);
+        }
+        try { c.send(message); } catch { /* closing */ }
       }
+      return;
+    }
+    if (att.role === "client" && message.charCodeAt(0) === 97 && message.length <= 6) { // "a<n>": n frames arrived
+      const f = this.inflight.get(ws);
+      if (f) { f.n = Math.max(0, f.n - (Number(message.slice(1)) || 0)); f.at = Date.now(); }
       return;
     }
     if (message.length > MAX_TEXT) {
@@ -263,6 +288,8 @@ export class Room extends DurableObject<Env> {
         att.thumbs = att.preview && m.thumbs === true;
         att.live = att.preview && m.rate !== "eco"; // "eco" = low-rate preview to save CPU
         att.max = att.preview && m.rate === "max";  // "max" = as fast as OBS can render, at any CPU/GPU cost
+        att.acks = m.acks === true;
+        this.inflight.delete(ws);
         ws.serializeAttachment(att);
         this.notifyDemand();
         return;
@@ -393,7 +420,7 @@ export class Room extends DurableObject<Env> {
   /** The device list goes to the OBS side and to owners, whenever it changes. */
   private async announceDevices(clients: Record<string, ClientRec>, closing?: WebSocket): Promise<void> {
     const text = JSON.stringify({ type: "devices", data: this.deviceList(clients, closing) });
-    this.obsSocket()?.send(text);
+    try { this.obsSocket()?.send(text); } catch { /* closing */ }
     for (const c of this.clientSockets()) {
       const a = c.deserializeAttachment() as Attachment;
       if (c !== closing && a.role === "client" && a.perm === "owner") {

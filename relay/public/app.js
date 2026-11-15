@@ -106,8 +106,13 @@ const diag = { start: Date.now(), msgs: 0, frames: 0, frameBytes: 0, reconnects:
 const holds = new Map(); // control id -> ignore OBS echo until this time (Infinity while dragging)
 const held = (ctl) => (holds.get(ctl) ?? 0) > performance.now();
 
+// A ping goes out every PING_MS. Nothing at all back for DEAD_MS after one means the connection is gone even if the
+// browser has not noticed (Wi-Fi to mobile data, a sleeping phone, a router that dropped the session). Counted from
+// the unanswered ping, so timers slowed down in a background tab do not look like a dead link.
+const PING_MS = 5000, DEAD_MS = 11000;
+
 const link = {
-  ws: null, tries: 0, hello: false, timer: 0, ping: 0, last: 0, demo: null, auth: null,
+  ws: null, tries: 0, hello: false, timer: 0, ping: 0, waitSince: 0, demo: null, auth: null, acks: 0, ackTimer: 0, probe: 0,
   open() {
     clearTimeout(this.timer);
     refreshConn();
@@ -117,37 +122,75 @@ const link = {
     const ws = new WebSocket(`${proto}://${location.host}/ws/client?room=${a.room}`, [`obsr.${a.token}`]);
     ws.binaryType = "arraybuffer";
     this.ws = ws;
+    this.hello = false;
     let pingAt = 0;
     const ping = () => {
-      if (Date.now() - this.last > 45000) return ws.close();
+      if (this.waitSince && Date.now() - this.waitSince > DEAD_MS) return this.drop(ws, "no answer");
+      if (!this.waitSince) this.waitSince = Date.now();
       pingAt = performance.now();
-      ws.send("ping");
+      try { ws.send("ping"); } catch { /* closing */ }
     };
+    // Opening can hang on a bad network: give up and try again instead of waiting for the browser.
+    const opening = setTimeout(() => { if (ws.readyState === WebSocket.CONNECTING) this.drop(ws, "connect timeout"); }, 10000);
     ws.onopen = () => {
-      this.last = Date.now();
+      clearTimeout(opening);
+      this.waitSince = 0;
+      this.acks = 0;
       clearInterval(this.ping);
       ping();
-      this.ping = setInterval(ping, 8000);
+      this.ping = setInterval(ping, PING_MS);
     };
     ws.onmessage = (e) => {
-      this.last = Date.now();
+      this.waitSince = 0;
+      clearTimeout(this.probe);
       if (e.data === "pong") { diag.rtt = Math.round(performance.now() - pingAt); refreshConn(); return; }
+      if (typeof e.data !== "string") this.ack();
       onMessage(e.data);
     };
-    ws.onclose = (e) => {
-      clearInterval(this.ping);
-      if (this.ws !== ws) return;
-      this.ws = null;
-      S.linkOpen = false;
-      diag.reconnects++;
-      diag.lastClose = `${e.code} ${e.reason || ""}`.trim();
-      diag.rtt = null;
-      refreshConn();
-      if (e.code === 4001) return forget("This device was removed from OBS. Pair it again.");
-      if (!this.hello && this.tries >= 4) toast("Can't reach the relay. Check the address, or forget this device and pair again.");
-      const wait = Math.min(10000, 500 * 2 ** this.tries++) + Math.random() * 300;
-      this.timer = setTimeout(() => this.open(), wait);
-    };
+    ws.onclose = (e) => { clearTimeout(opening); this.closed(ws, e.code, e.reason); };
+  },
+  /** The socket ended (or we gave up on it): show it and try again with backoff. */
+  closed(ws, code, reason = "") {
+    if (this.ws !== ws) return;
+    clearInterval(this.ping);
+    clearTimeout(this.probe);
+    this.ws = null;
+    S.linkOpen = false;
+    diag.reconnects++;
+    diag.lastClose = `${code} ${reason}`.trim();
+    diag.rtt = null;
+    refreshConn();
+    if (code === 4001) return forget("This device was removed from OBS. Pair it again.");
+    if (this.tries === 4) toast("Can't reach OBS Remote. Check the internet connection, or forget this device and pair again.");
+    const wait = Math.min(8000, 400 * 2 ** this.tries++) + Math.random() * 300;
+    this.timer = setTimeout(() => this.open(), wait);
+  },
+  /** Stop waiting for a dead socket: a close handshake over a broken network can take minutes. */
+  drop(ws, why) {
+    ws.onclose = ws.onmessage = ws.onopen = null;
+    try { ws.close(); } catch { /* already closed */ }
+    this.closed(ws, 4999, why);
+  },
+  /** Back on screen or back online: a socket that looks open may be dead, so ask and reconnect if nothing answers. */
+  check() {
+    if (this.demo || !this.auth) return;
+    if (!this.ws) return this.reconnectNow();
+    const ws = this.ws;
+    if (ws.readyState !== WebSocket.OPEN) return;
+    clearTimeout(this.probe);
+    try { ws.send("ping"); } catch { /* closing */ }
+    this.probe = setTimeout(() => { if (this.ws === ws) { this.tries = 0; this.drop(ws, "no answer after wake"); } }, 3500);
+  },
+  /** Preview frames are acknowledged in small batches so the relay only sends what this device keeps up with. */
+  ack() {
+    this.acks++;
+    if (this.ackTimer) return;
+    this.ackTimer = setTimeout(() => {
+      this.ackTimer = 0;
+      const n = Math.min(this.acks, 9999);
+      this.acks -= n;
+      if (n && this.ws?.readyState === WebSocket.OPEN) try { this.ws.send("a" + n); } catch { /* closing */ }
+    }, 60);
   },
   send(m) {
     if (this.demo) { this.demo.send(m); return true; }
@@ -1020,12 +1063,13 @@ function showFrame(buf) {
   diag.frames++;
   diag.frameBytes += buf.byteLength;
   const chb = new Uint8Array(buf, 0, 1)[0];
-  if (chb === 2) { // scene thumbnail for Present mode: [2][name length][name][image]
+  if (chb === 2 || chb === 3) { // Present mode, [ch][name length][name][image]: 2 = scene thumbnail, 3 = its last real picture
     const n = new Uint8Array(buf, 1, 1)[0];
     if (buf.byteLength < 3 + n + 4) return;
     const name = new TextDecoder().decode(new Uint8Array(buf, 2, n));
     const img = buf.slice(2 + n);
-    easy.thumb(name, URL.createObjectURL(new Blob([img], { type: imgType(new Uint8Array(img, 0, 4)) })));
+    const url = URL.createObjectURL(new Blob([img], { type: imgType(new Uint8Array(img, 0, 4)) }));
+    if (chb === 3) easy.remembered(name, url); else easy.thumb(name, url);
     return;
   }
   const ch = chb === 1 ? 1 : 0;
@@ -1054,7 +1098,7 @@ function syncPreview() {
   if (sig === previewSent) return;
   previewSent = sig;
   $$(".screen .off, .ez-screen .off").forEach((el) => (el.textContent = prefs.preview === "off" ? "preview off" : "no preview"));
-  link.send({ type: "sub", preview: want, thumbs: want && easyOn, rate });
+  link.send({ type: "sub", preview: want, thumbs: want && easyOn, rate, acks: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -1250,9 +1294,9 @@ function bindUi() {
   addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(applyLayout, 120); });
   document.addEventListener("visibilitychange", () => {
     syncPreview();
-    if (!document.hidden) { link.reconnectNow(); if (S.linkOpen) link.send({ type: "sync" }); }
+    if (!document.hidden) { link.check(); if (S.linkOpen) link.send({ type: "sync" }); }
   });
-  addEventListener("online", () => link.reconnectNow());
+  addEventListener("online", () => link.check());
   setInterval(updateTimes, 1000);
 }
 

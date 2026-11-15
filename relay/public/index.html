@@ -70,27 +70,30 @@
       <button id="ezSettings" class="icon" aria-label="Settings"></button>
     </header>
 
-    <div class="ez-stage" id="ezStage">
-      <figure class="ez-mon next" id="ezNextBox">
-        <figcaption><b>NEXT</b><span id="ezNextName"></span></figcaption>
-        <div class="ez-screen" id="ezScrB"><img id="ezImgB" alt="Next screen" draggable="false"><span class="off">no preview</span></div>
-      </figure>
-      <div class="ez-go" id="ezGo">
-        <button id="ezTake" class="ez-take"><span data-icon="take"></span><b>TAKE</b></button>
-        <button id="ezCut" class="ez-cut">CUT</button>
+    <!-- On a computer screen this whole block is one multiview: NEXT and ON AIR big, every screen as a small window. -->
+    <div class="ez-mv" id="ezMv">
+      <div class="ez-stage" id="ezStage">
+        <figure class="ez-mon next" id="ezNextBox">
+          <figcaption><b>NEXT</b><span id="ezNextName"></span></figcaption>
+          <div class="ez-screen" id="ezScrB"><img id="ezImgB" alt="Next screen" draggable="false"><span class="off">no preview</span></div>
+        </figure>
+        <div class="ez-go" id="ezGo">
+          <button id="ezTake" class="ez-take"><span data-icon="take"></span><b>TAKE</b></button>
+          <button id="ezCut" class="ez-cut">CUT</button>
+        </div>
+        <figure class="ez-mon air" id="ezAirBox">
+          <figcaption><b>ON AIR</b><span id="ezAirName"></span></figcaption>
+          <div class="ez-screen" id="ezScrA"><img id="ezImgA" alt="Screen on air" draggable="false"><span class="off">no preview</span></div>
+        </figure>
       </div>
-      <figure class="ez-mon air" id="ezAirBox">
-        <figcaption><b>ON AIR</b><span id="ezAirName"></span></figcaption>
-        <div class="ez-screen" id="ezScrA"><img id="ezImgA" alt="Screen on air" draggable="false"><span class="off">no preview</span></div>
-      </figure>
+
+      <div class="ez-meter" id="ezMeter" aria-hidden="true"><i></i></div>
+
+      <section class="ez-block ez-screens" aria-label="Screens">
+        <h2 class="ez-h">Screens <small id="ezHint"></small></h2>
+        <div class="ez-scenes" id="ezScenes" role="listbox" aria-label="Screens"></div>
+      </section>
     </div>
-
-    <div class="ez-meter" id="ezMeter" aria-hidden="true"><i></i></div>
-
-    <section class="ez-block" aria-label="Screens">
-      <h2 class="ez-h">Screens <small id="ezHint"></small></h2>
-      <div class="ez-scenes" id="ezScenes" role="listbox" aria-label="Screens"></div>
-    </section>
 
     <section class="ez-block" id="ezSlideBlock" aria-label="Slides">
       <h2 class="ez-h">Slides <small>arrow keys / PageUp&middot;PageDown also work</small></h2>

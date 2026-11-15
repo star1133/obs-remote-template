@@ -83,8 +83,12 @@ export function kindOfTransition(k = "") {
 export const FRAME_PGM = 0;
 export const FRAME_PVW = 1;
 export const FRAME_THUMB = 2; // [2][name length][scene name utf8][jpeg]
+export const FRAME_REMEMBERED = 3; // same layout: the last real picture of a scene, kept on disk
+// OBS draws a scene that is not live as black (its windows, cameras and screens only render on air); such a
+// 256x144 thumbnail is about 1.2 KB. Anything bigger has something on it and is worth remembering.
+const REAL_MIN = 2200;
 
-export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () => false, layout = { load: () => ({ buttons: [] }), save: () => {} } }) {
+export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () => false, layout = { load: () => ({ buttons: [] }), save: () => {} }, pictures = { load: () => ({}), save: () => {} } }) {
   const obs = { c: null };
   let st = null;               // cached snapshot, kept current by events
   let stopped = false;
@@ -127,6 +131,7 @@ export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () 
         log(`connected to OBS ${st.obs.version}`);
         evt("ObsOnline", { online: true });
         send({ type: "state.sync", data: { ...st, now: Date.now() } });
+        if (demand.thumbs > 0) freshThumbs(); // phones were waiting in Present mode while OBS was closed
         startTimers();
         return; // onClose restarts the loop
       } catch (e) {
@@ -404,7 +409,9 @@ export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () 
         const nm = Buffer.from(name, "utf8").subarray(0, 255);
         if (b64 && thumbLast.get(name) !== b64) { // unchanged picture (still image, paused video): send nothing
           thumbLast.set(name, b64);
-          send(Buffer.concat([Buffer.from([FRAME_THUMB, nm.length]), nm, Buffer.from(b64, "base64")]));
+          const img = Buffer.from(b64, "base64");
+          send(Buffer.concat([Buffer.from([FRAME_THUMB, nm.length]), nm, img]));
+          if (img.length >= REAL_MIN) { remembered.set(name, b64); saveRemembered(); }
         }
       }
     } catch { /* scene may have vanished mid-request */ }
@@ -415,6 +422,25 @@ export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () 
   // Program and preview each run their own loop, paced by how fast OBS answers (no fixed sleeps), so the picture
   // is as live as the screenshot API allows (~15 fps program, ~8 fps preview). The relay link drops frames when backed up.
   const thumbLast = new Map(); // scene -> last screenshot (base64) so unchanged pictures are not re-sent
+  const remembered = new Map(Object.entries(pictures.load() ?? {}).filter(([, v]) => typeof v === "string"));
+
+  function saveRemembered() {
+    const keep = new Set(st?.scenes ?? []);
+    for (const n of remembered.keys()) if (st && !keep.has(n)) remembered.delete(n); // scene deleted or renamed
+    pictures.save(Object.fromEntries(remembered));
+  }
+
+  /** A phone opened Present mode: it has no pictures yet. Send what each scene last looked like, and let the
+   *  thumbnail loop send every scene again even when its picture has not changed. */
+  function freshThumbs() {
+    thumbLast.clear();
+    for (const name of st?.scenes ?? []) {
+      const b64 = remembered.get(name);
+      if (!b64) continue;
+      const nm = Buffer.from(name, "utf8").subarray(0, 255);
+      send(Buffer.concat([Buffer.from([FRAME_REMEMBERED, nm.length]), nm, Buffer.from(b64, "base64")]));
+    }
+  }
   const ECO = [500, 800]; // while nobody asked for the live rate (saves CPU/GPU on the streaming PC)
   const loops = [{ timer: null, busy: false, every: 66, last: "" }, { timer: null, busy: false, every: 120, last: "" }];
 
@@ -539,7 +565,9 @@ export function createBridge({ getObsConf, send, log = () => {}, allowKeys = () 
 
   async function handleRelay(m) {
     if (m.type === "demand") {
+      const before = demand.thumbs;
       demand = { clients: m.clients | 0, preview: m.preview | 0, thumbs: m.thumbs | 0, live: m.live | 0, max: m.max | 0 };
+      if (demand.thumbs > before) freshThumbs();
       applyDemand();
       return;
     }

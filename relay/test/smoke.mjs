@@ -157,6 +157,26 @@ obs.send(Buffer.from([0xff, 0xd8, 1, 2, 3, 4, 5, 6, 7, 8]));
 const frame = await next(cl, (m) => m.binary);
 ok(frame.binary === 10, "binary preview frame reaches subscribed client");
 
+// ---- flow control: a client that acknowledges frames gets at most 12 unacknowledged ones ----
+const countFrames = async (ms) => { await new Promise((r) => setTimeout(r, ms)); const n = cl.msgs.filter((m) => m.binary).length; cl.msgs = cl.msgs.filter((m) => !m.binary); return n; };
+const burst = (n) => { for (let i = 0; i < n; i++) obs.send(Buffer.from([0, 0xff, 0xd8, 1, 2, 3, 4, 5, 6, 7])); };
+burst(30);
+ok((await countFrames(600)) === 30, "a client without acks (older page) gets every frame");
+cl.send(JSON.stringify({ type: "sub", preview: true, acks: true }));
+await next(obs, (m) => m.type === "demand");
+burst(30);
+const got12 = await countFrames(600);
+ok(got12 === 12, `a client that has not acknowledged gets at most 12 frames (${got12})`);
+cl.send("a12");
+await new Promise((r) => setTimeout(r, 150));
+burst(5);
+ok((await countFrames(600)) === 5, "acknowledged frames free the window");
+obs.send(Buffer.from([2, 1, 65, 0xff, 0xd8, 1, 2, 3]));
+ok((await countFrames(400)) === 0, "scene pictures go only to Present-mode clients");
+cl.send("a99");
+cl.send(JSON.stringify({ type: "sub", preview: true }));
+await next(obs, (m) => m.type === "demand");
+
 // ---- sharing: owners invite operators/viewers; viewers can only watch ----
 cl.send(JSON.stringify({ type: "invite", role: "viewer" }));
 const inv = await next(cl, (m) => m.type === "invite.code");

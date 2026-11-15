@@ -189,3 +189,60 @@ html[data-mode="easy"] body { background: radial-gradient(120% 70% at 50% -10%, 
 .ez-scene.blank .ez-nm { z-index: 2; }
 .ez-scene.stale .ez-th img { filter: saturate(.55) brightness(.78); }
 .ez-scene.stale .ez-th::before { content: "last picture"; position: absolute; z-index: 1; top: .6em; left: 50%; transform: translateX(-50%); padding: .1em .6em; border-radius: 99px; background: #0b0d12cc; font: 600 .6em var(--font-num); letter-spacing: .08em; color: #aeb6ca; }
+
+/* ======================= multiview (computer screens) =======================
+   Like a broadcast switcher's multiview: one black frame split into windows by thin lines. NEXT and ON AIR are
+   the big windows, every screen is a small one, tally colours are borders inside the windows, names sit in a band
+   at the bottom. easy.js sets --cols, --k (big window size in small windows) and --mv-max (fits the screen height). */
+.ez-mv { display: grid; gap: 1em; }
+.ez-fill { display: none; }
+.ez-scene.stale .ez-th::before { content: "LAST PICTURE"; top: .55em; padding: .15em .65em; font-size: .6em; letter-spacing: .12em; color: #ffd27a; background: #000000cc; box-shadow: 0 0 0 1px #ffd27a55; }
+.ez-scene.blank .ez-th::before { content: "NO PICTURE YET"; letter-spacing: .12em; }
+
+@media (min-width: 64em) {
+  .ez-mv { grid-template-columns: repeat(var(--cols, 6), minmax(0, 1fr)); gap: 2px; padding: 2px; width: 100%; max-width: var(--mv-max, none); margin: 0 auto; background: #2b303c; border-radius: .7em; overflow: hidden; box-shadow: 0 0 0 1px #ffffff12, 0 30px 70px #000b; }
+  .ez-mv > .ez-stage, .ez-mv > .ez-screens, .ez-mv .ez-scenes { display: contents; }
+  .ez-mv .ez-screens > .ez-h { display: none; }
+
+  /* big windows */
+  .ez-mv .ez-mon { position: relative; display: block; max-width: none; background: #000; grid-row: 1 / span var(--k, 3); grid-column: 1 / span var(--k, 3); }
+  .ez-mv .ez-stage.is-studio .ez-mon.air { grid-column: span var(--k, 3) / -1; }
+  .ez-mv .ez-screen { height: 100%; border-radius: 0; box-shadow: none; }
+  .ez-mv .ez-mon.air .ez-screen, .ez-mv .ez-mon.next .ez-screen, .ez-mv .ez-stage.mixing .ez-mon.air .ez-screen { box-shadow: none; }
+  .ez-mv .ez-screen::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; box-shadow: inset 0 0 0 3px transparent; transition: box-shadow .2s; }
+  .ez-mv .ez-mon.air .ez-screen::after { box-shadow: inset 0 0 0 3px var(--live); }
+  .ez-mv .ez-mon.next .ez-screen::after { box-shadow: inset 0 0 0 3px var(--pvw); }
+  .ez-mv .ez-stage.mixing .ez-mon.air .ez-screen::after { box-shadow: inset 0 0 0 3px #fff; }
+  .ez-mv .ez-mon figcaption { position: absolute; z-index: 2; left: 50%; bottom: .8em; transform: translateX(-50%); max-width: calc(100% - 2em); padding: .35em .9em .35em .5em; border-radius: .45em; background: #000000b8; backdrop-filter: blur(4px); }
+  .ez-mv .ez-mon figcaption b { padding: 0 .3em; background: none; border: 0; font-size: .78em; }
+  .ez-mv .ez-mon figcaption span { color: #eef0f6; font-weight: 600; }
+
+  /* small windows */
+  .ez-mv .ez-scene { border-radius: 0; background: #000; box-shadow: none; transition: none; }
+  .ez-mv .ez-scene:hover, .ez-mv .ez-scene:active { transform: none; background: #000; }
+  .ez-mv .ez-scene:hover .ez-th img { filter: brightness(1.15); }
+  .ez-mv .ez-scene.stale:hover .ez-th img { filter: saturate(.55) brightness(.9); }
+  .ez-mv .ez-scene::after { position: absolute; inset: 0; z-index: 3; height: auto; pointer-events: none; background: none; box-shadow: inset 0 0 0 3px transparent; }
+  .ez-mv .ez-scene:hover::after { box-shadow: inset 0 0 0 2px #ffffff40; }
+  .ez-mv .ez-scene.air::after, .ez-mv .ez-scene.air:hover::after { background: none; box-shadow: inset 0 0 0 3px var(--live); }
+  .ez-mv .ez-scene.next::after, .ez-mv .ez-scene.next:hover::after { background: none; box-shadow: inset 0 0 0 3px var(--pvw); }
+  .ez-mv .ez-scene.air, .ez-mv .ez-scene.next { box-shadow: none; }
+  .ez-mv .ez-th::after { display: none; }
+  .ez-mv .ez-nm { left: 0; right: 0; bottom: 0; padding: .3em .5em; text-align: center; font-size: .84em; background: #000000a8; text-shadow: none; }
+  .ez-mv .ez-scene.air .ez-nm { background: #b3261ecc; }
+  .ez-mv .ez-scene.next .ez-nm { background: #2f8a45cc; }
+  .ez-mv .ez-num { top: .45em; left: .45em; min-width: 1.5em; height: 1.5em; font-size: .85em; border-radius: .35em; }
+  .ez-mv .ez-tag { display: none; }
+  .ez-mv .ez-scene.stale .ez-th::before { top: .75em; left: 2.9em; transform: none; }
+  .ez-mv .ez-kind { top: .55em; right: .45em; bottom: auto; }
+  .ez-mv .ez-fill { display: block; aspect-ratio: 16 / 9; background: #090a0d; }
+
+  /* the bus row under the windows: CUT and TAKE */
+  .ez-mv .ez-meter { order: 1; grid-column: 1 / -1; height: .3em; margin: 0; border-radius: 0; background: #12151c; opacity: 1; }
+  .ez-mv .ez-meter:not(.run) i { width: 0; }
+  .ez-mv .ez-go { order: 2; grid-column: 1 / -1; display: flex; justify-content: center; gap: .7em; padding: .6em; background: #12151c; }
+  .ez-mv .ez-take { grid-auto-flow: column; align-items: center; gap: .5em; min-width: 15em; padding: .55em 1.6em; }
+  .ez-mv .ez-take .ic { width: 1.5em; height: 1.5em; }
+  .ez-mv .ez-take b { font-size: 1.15em; }
+  .ez-mv .ez-cut { min-width: 8em; min-height: 0; }
+}

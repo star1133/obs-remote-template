@@ -91,7 +91,17 @@ export async function runAgent({ log = console.log, open = false, notify = false
     load: () => { try { return cleanLayout(JSON.parse(readFileSync(layoutFile, "utf8"))); } catch { return { buttons: [] }; } },
     save: (l) => writeFileSync(layoutFile, JSON.stringify(l, null, 2)),
   };
-  const bridge = createBridge({ getObsConf, send: (m) => link.send(m), log, allowKeys: () => loadConfig().presentKeys === true, layout });
+  // What each scene last looked like on air, so Present mode has a picture for every screen, even after a restart.
+  const picturesFile = join(DIR, "scene-pictures.json");
+  let picturesTimer = null, picturesNext = null;
+  const pictures = {
+    load: () => { try { return JSON.parse(readFileSync(picturesFile, "utf8")); } catch { return {}; } },
+    save: (p) => { // at most every 5 s: a live video changes its picture all the time
+      picturesNext = p;
+      picturesTimer ??= setTimeout(() => { picturesTimer = null; try { writeFileSync(picturesFile, JSON.stringify(picturesNext)); } catch { /* next change retries */ } }, 5000);
+    },
+  };
+  const bridge = createBridge({ getObsConf, send: (m) => link.send(m), log, allowKeys: () => loadConfig().presentKeys === true, layout, pictures });
   link = createRelayLink({
     relay: linkRelay, room: cfg.room, token: cfg.deviceToken, log,
     onUp: () => { log("relay connected"); bridge.relayUp(); },

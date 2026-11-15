@@ -9,6 +9,7 @@ import { WebSocketServer } from "ws";
 
 const MAX_TEXT = 64 * 1024;
 const MAX_BINARY = 512 * 1024;
+const WINDOW = 12, STALL_MS = 3000; // preview frame flow control, as in relay/src/room.ts
 const PAIR_TTL_MS = 5 * 60 * 1000;
 const PAIR_MAX_ACTIVE = 8;
 const FAIL_LIMIT = 10;
@@ -136,6 +137,8 @@ export function startLocalRelay({ stateFile, room, deviceToken, assets, port = 0
         att.thumbs = att.preview && m.thumbs === true;
         att.live = att.preview && m.rate !== "eco";
         att.max = att.preview && m.rate === "max";
+        att.acks = m.acks === true;
+        ws.inflight = null;
         return notifyDemand();
       case "sync":
         toObs({ type: "sync.request", cid: att.cid });
@@ -181,11 +184,28 @@ export function startLocalRelay({ stateFile, room, deviceToken, assets, port = 0
     if (!allow(ws, role)) return;
     if (isBinary) {
       if (role !== "obs" || data.length > MAX_BINARY) return;
-      const thumb = data[0] === 2; // channel 2 = scene thumbnails, only for Present-mode clients
-      for (const c of clientSockets) if (c.att.preview && (!thumb || c.att.thumbs)) sendTo(c, data, { binary: true });
+      const thumb = data[0] === 2 || data[0] === 3; // channels 2 and 3 = scene pictures, only for Present-mode clients
+      const now = Date.now();
+      for (const c of clientSockets) {
+        if (!c.att.preview || (thumb && !c.att.thumbs)) continue;
+        if (c.att.acks) {
+          const f = c.inflight ?? (c.inflight = { n: 0, at: now });
+          if (f.n >= WINDOW && !thumb) {
+            if (now - f.at < STALL_MS) continue;
+            f.n = 0;
+          }
+          if (f.n === 0) f.at = now;
+          f.n++;
+        }
+        sendTo(c, data, { binary: true });
+      }
       return;
     }
     const text = data.toString();
+    if (role === "client" && text.length <= 6 && text[0] === "a") { // "a<n>": n frames arrived
+      if (ws.inflight) { ws.inflight.n = Math.max(0, ws.inflight.n - (Number(text.slice(1)) || 0)); ws.inflight.at = Date.now(); }
+      return;
+    }
     if (text.length > MAX_TEXT) return ws.close(1009, "too large");
     let m;
     try { m = JSON.parse(text); } catch { return; }

@@ -9,6 +9,7 @@ const isWindow = (k = "") => /window_capture|display_capture|monitor_capture/.te
 export function createEasy(api) {
   const { S, $, $$, h, icon, rpc, toast, bindHold, kindOfT, setBtn, prefs } = api;
   const thumbs = new Map();   // scene name -> object URL of its latest screenshot
+  const memo = new Map();     // scene name -> object URL of the last real picture the OBS computer remembers
   let built = false;
   let key = "";
 
@@ -111,13 +112,43 @@ export function createEasy(api) {
     return null;
   }
 
+  /** Multiview on a computer screen: a grid of `cols` small windows; NEXT and ON AIR each take a k x k block
+   *  (k = cols / 2), on top in studio mode, ON AIR on the left otherwise with the screens beside it. */
+  function grid(n, studio) {
+    const cols = studio ? (n <= 4 ? 4 : n <= 12 ? 6 : 8) : (n <= 4 ? 4 : n <= 9 ? 6 : 8);
+    const k = cols / 2;
+    const below = studio ? n : Math.max(0, n - k * k); // screens under the big windows
+    const rows = k + Math.ceil(below / cols);
+    const empty = studio || n > k * k ? (cols - (below % cols)) % cols : k * k - n;
+    return { cols, k, rows, empty };
+  }
+
+  let fitSig = "";
+  /** Size the multiview so all of it fits on the screen without scrolling. */
+  function fitMultiview() {
+    const d = D();
+    if (!d) return;
+    const sig = `${shown().length}|${d.studioMode}`;
+    if (sig === fitSig) return;
+    fitSig = sig;
+    const g = grid(shown().length, d.studioMode);
+    const mv = $("#ezMv");
+    const top = $(".ez-bar").getBoundingClientRect().height;
+    const strip = d.studioMode ? 4.6 * parseFloat(getComputedStyle(mv).fontSize) : 0;
+    const room = innerHeight - top - strip - 24;
+    mv.style.setProperty("--cols", String(g.cols));
+    mv.style.setProperty("--k", String(g.k));
+    mv.style.setProperty("--mv-max", `${Math.max(560, Math.floor((room * g.cols * 16) / (9 * g.rows)))}px`);
+  }
+
   function renderScenes() {
     const d = D();
     const studio = d.studioMode;
     $("#ezHint").textContent = studio ? "tap to line up NEXT, then press TAKE" : "tap to go live";
+    const fill = Array.from({ length: grid(shown().length, studio).empty }, () => h("span", { class: "ez-fill", "aria-hidden": "true" }));
     $("#ezScenes").replaceChildren(...shown().map((name, i) => {
       const air = name === d.program, nxt = studio && name === d.preview;
-      const url = thumbs.get(name);
+      const url = thumbs.get(name) ?? memo.get(name);
       return h("button", {
         class: "ez-scene" + (stale.has(name) ? " stale" : "") + (blank.has(name) ? " blank" : "") + (air ? " air" : "") + (nxt ? " next" : "") + (S.arming === name ? " arming" : ""),
         role: "option", "aria-selected": String(studio ? nxt : air), onclick: () => pick(name),
@@ -126,7 +157,7 @@ export function createEasy(api) {
       (() => { const k = kindBadge(name); return k ? h("span", { class: "ez-kind", title: k[1] }, icon(k[0]), k[1]) : null; })(),
       h("span", { class: "ez-num" }, String(i + 1)),
       air ? h("span", { class: "ez-tag air" }, "ON AIR") : nxt ? h("span", { class: "ez-tag next" }, "NEXT") : null);
-    }));
+    }), ...fill);
   }
 
   function renderFx() {
@@ -170,6 +201,7 @@ export function createEasy(api) {
     $("#ezStage").classList.toggle("mixing", busy);
     const sig = [shown().join(), d.program, d.preview, studio, S.arming, JSON.stringify(d.items)].join("|");
     if (sig !== key) { key = sig; renderScenes(); }
+    fitMultiview();
     renderSlidesIfChanged();
     renderFx();
     renderOut();
@@ -215,7 +247,7 @@ export function createEasy(api) {
     // picture off air means "not drawn", not "nothing there". The scene on air is the one place black is real.
     if (name !== D()?.program && (await isBlack(url))) {
       URL.revokeObjectURL(url);
-      if (thumbs.has(name)) { if (!stale.has(name)) { stale.add(name); markStale(name); } }
+      if (thumbs.has(name) || memo.has(name)) { if (!stale.has(name)) { stale.add(name); markStale(name); } }
       else if (!blank.has(name)) { blank.add(name); markStale(name); }
       return;
     }
@@ -223,6 +255,25 @@ export function createEasy(api) {
     const old = thumbs.get(name);
     thumbs.set(name, url);
     if (old) setTimeout(() => URL.revokeObjectURL(old), 1500);
+    setTileImage(name, url);
+  }
+
+  /** The last real picture of a scene, from the OBS computer's memory. Shown (marked as an old picture) until a
+   *  live one arrives, so a screen that is black off air still shows what it looks like. */
+  function remembered(name, url) {
+    const old = memo.get(name);
+    memo.set(name, url);
+    if (old) setTimeout(() => URL.revokeObjectURL(old), 1500);
+    if (thumbs.has(name) && !stale.has(name)) return; // a live picture is already showing
+    const ours = thumbs.get(name); // older than what the OBS computer remembers
+    if (ours) { thumbs.delete(name); setTimeout(() => URL.revokeObjectURL(ours), 1500); }
+    stale.add(name);
+    blank.delete(name);
+    markStale(name);
+    setTileImage(name, url);
+  }
+
+  function setTileImage(name, url) {
     if (!built || !active()) return;
     const i = shown().indexOf(name);
     const th = i >= 0 && $$(".ez-scene .ez-th", $("#ezScenes"))[i];
@@ -275,6 +326,7 @@ export function createEasy(api) {
     bindHold($("#ezStream"), () => rpc(D().stream.active ? "StopStream" : "StartStream", {}), () => true, 800);
     bindHold($("#ezRecord"), () => rpc(D().record.active ? "StopRecord" : "StartRecord", {}), () => D().record.active, 800);
     addEventListener("keydown", onKey);
+    addEventListener("resize", () => { fitSig = ""; if (active()) fitMultiview(); });
   }
 
   /** Transition progress under the monitors (0..1, or null when idle). */
@@ -286,11 +338,11 @@ export function createEasy(api) {
 
   /** Another computer took over: its scenes are different, so forget every picture of the last one. */
   function reset() {
-    for (const url of thumbs.values()) URL.revokeObjectURL(url);
-    thumbs.clear(); stale.clear(); blank.clear();
-    key = ""; slideSig = "";
+    for (const url of [...thumbs.values(), ...memo.values()]) URL.revokeObjectURL(url);
+    thumbs.clear(); memo.clear(); stale.clear(); blank.clear();
+    key = ""; slideSig = ""; fitSig = "";
     if (built) { $("#ezScenes").replaceChildren(); $("#ezImgA").removeAttribute("src"); $("#ezImgB").removeAttribute("src"); $("#ezScrA").classList.remove("has"); $("#ezScrB").classList.remove("has"); }
   }
 
-  return { build, render, frame, thumb, progress, reset };
+  return { build, render, frame, thumb, remembered, progress, reset };
 }
