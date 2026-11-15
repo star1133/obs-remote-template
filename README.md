@@ -16,7 +16,8 @@
 ## ใช้งาน (ผู้ใช้ทั่วไป) — 3 ขั้นตอน
 
 1. ดับเบิลคลิก **`OBS-Remote-Setup.exe`** (ปิด OBS ก่อนจะดีที่สุด)
-   - ติดตั้งโปรแกรมที่ `%LOCALAPPDATA%\OBS Remote`, ตั้งให้เปิดอัตโนมัติพร้อม Windows
+   - ติดตั้งโปรแกรมที่ `%LOCALAPPDATA%\OBS Remote` และปลั๊กอิน OBS ที่ `%ProgramData%\obs-studio\plugins\obs-remote` (ไม่ต้องใช้สิทธิ์ admin)
+   - ปลั๊กอินเปิด OBS Remote พร้อม OBS และปิดตามเมื่อปิด OBS ไม่มีไอคอนข้างนาฬิกา ไม่เปิดพร้อม Windows (ถ้า OBS เปิดอยู่ ตัวติดตั้งจะรอให้ปิดก่อน แล้วเปิดให้ใหม่ตอนเสร็จ)
    - เปิด WebSocket ของ OBS ให้ (ถ้าเปิดอยู่แล้วจะไม่แตะรหัสผ่านเดิม)
    - เพิ่ม dock "OBS Remote" ใน OBS
 2. เปิด OBS → จะเห็น dock **OBS Remote** (ถ้าไม่เห็น: เมนู *Docks → OBS Remote*) แสดง QR
@@ -24,12 +25,12 @@
 
 แชร์ให้คนอื่น: ในหน้าควบคุม → ⚙ Settings → *Share access* → สร้างลิงก์ "ควบคุมได้" หรือ "ดูอย่างเดียว" (ใช้ได้ครั้งเดียว, 5 นาที) และกด Remove เพื่อถอนสิทธิ์ได้
 
-ถอนการติดตั้ง: `%LOCALAPPDATA%\OBS Remote\obs-remote.exe uninstall` (ลบ dock, ปุ่มเริ่มอัตโนมัติ และไฟล์ทั้งหมด)
+ถอนการติดตั้ง: Settings ของ Windows → Apps → OBS Remote หรือ `%LOCALAPPDATA%\OBS Remote\obs-remote.exe uninstall` (ลบปลั๊กอิน, dock และไฟล์ทั้งหมด)
 
 ## แบบไม่ต้องมีบัญชี Cloudflare (ลิงก์ชั่วคราว)
 
 ดับเบิลคลิก **`build-installer.cmd`** แล้วเอา `OBS-Remote-Setup.exe` ไปติดตั้ง — ตัวโปรแกรมจะเป็น relay ของตัวเองบนคอมที่เปิด OBS และเปิดลิงก์สาธารณะด้วย Cloudflare Quick Tunnel (โหลด `cloudflared` ครั้งแรกอัตโนมัติ ~60 MB)
-- ลิงก์ (`xxxx.trycloudflare.com`) **เปลี่ยนทุกครั้งที่เปิดโปรแกรมใหม่** ต้องสแกน QR ใหม่ (ปุ่ม *Open the control page* ใน dock เปิดหน้าเว็บบนคอมเครื่องนั้นได้เลย)
+- ลิงก์ (`xxxx.trycloudflare.com`) **เปลี่ยนทุกครั้งที่เปิด OBS ใหม่** ต้องสแกน QR ใหม่ (ปุ่ม *Open the control page* ใน dock เปิดหน้าเว็บบนคอมเครื่องนั้นได้เลย)
 - ต้องเปิดคอมและโปรแกรมทิ้งไว้ ถ้าแอนตี้ไวรัสสแกน HTTPS (เช่น Avast Web Shield) อาจบล็อกอุโมงค์ — หน้า setup จะแจ้งสถานะ "Public link"
 - ยังไม่ได้ยืนยันปลายทางจริงว่าลิงก์สาธารณะเปิดหน้าเว็บได้ (ดูสรุปงาน)
 
@@ -71,6 +72,7 @@
 ## โครงสร้างโปรเจกต์
 - `relay/` — Cloudflare Worker + Durable Object + หน้าเว็บ (`public/`) · `npm test` (ต้องรัน `npx wrangler dev` ไว้)
 - `agent/` — โปรแกรมบนคอม OBS · `npm test` (e2e กับ OBS จำลอง + relay) · `node build.mjs` สร้าง exe
+- `agent/plugin/` — ปลั๊กอิน OBS ตัวเล็ก (C, ไม่ลิงก์ libobs) ที่เปิด/ปิด agent พร้อม OBS · `node build.mjs` คอมไพล์ใหม่ถ้ามี MinGW gcc ไม่งั้นใช้ `obs-remote.dll` ที่ commit ไว้
 - `PLAN.md` — แผนและรายละเอียดโปรโตคอล
 
 ## พัฒนา/ทดสอบ

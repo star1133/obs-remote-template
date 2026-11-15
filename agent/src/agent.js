@@ -64,7 +64,7 @@ export async function ensureRegistered(opts = {}) {
   return next;
 }
 
-export async function runAgent({ log = console.log, open = false, notify = false, onQuit = () => {}, onUninstall = () => {} } = {}) {
+export async function runAgent({ log = console.log, open = false, notify = false, hosted = false, restartArgs = [], onQuit = () => {}, onUninstall = () => {} } = {}) {
   const cfg = await ensureRegistered();
   let devices = [];
   let local = null, tunnel = null, tray = null, linkRelay = cfg.relay;
@@ -118,6 +118,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
         cloudHost: (BAKED.relay || cfg.relay || "").replace(/^https?:\/\//, ""),
         tunnel: tunnel ? tunnel.status() : null,
         room: cfg.room,
+        hosted,
         devices,
         host: hostname(),
         obsWs: f ? { enabled: f.enabled, port: f.port, auth: f.auth } : null,
@@ -146,7 +147,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
       await ensureRegistered({ mode }); // registers (cloud) or makes an identity (local) before we stop
       log("switching to " + mode);
       setTimeout(() => {
-        try { spawn(process.execPath, ["run", "--wait"], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } catch (e) { log("restart failed: " + e.message); }
+        try { spawn(process.execPath, ["run", "--wait", ...restartArgs], { detached: true, stdio: "ignore", windowsHide: true }).unref(); } catch (e) { log("restart failed: " + e.message); }
         api.stop(); process.exit(0);
       }, 200);
     },
@@ -169,6 +170,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
   bridge.start();
   link.start();
   const server = await startSetupServer(api, { log, open });
-  tray = startTray({ notify, log });
+  // Started by the OBS plugin: OBS is the way in, so no tray icon.
+  if (!hosted) tray = startTray({ notify, log });
   return api;
 }

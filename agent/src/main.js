@@ -1,6 +1,6 @@
-// OBS Remote agent. Double-click = install (or open the setup page when already installed).
+// OBS Remote agent. Double-click = install. The OBS plugin it installs starts `run --hosted` with OBS and stops it with OBS.
 //   obs-remote.exe [install|run|uninstall|status] [--relay URL] [--key KEY] [--open]
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { isSea } from "node:sea";
@@ -20,7 +20,12 @@ const LOG_FILE = join(DIR, "agent.log");
 const UNINSTALL_KEY = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSRemote`;
 const MENU_DIR = join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs", APP);
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "dev";
+// Earlier versions started with Windows and had Start menu shortcuts; installing or removing cleans those up.
 const STARTUP_VBS = join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs", "Startup", `${APP}.vbs`);
+// OBS 28+ also loads plugins from ProgramData, which ordinary users may write to (no admin prompt).
+const PLUGIN_DIR = join(process.env.ProgramData || String.raw`C:\ProgramData`, "obs-studio", "plugins", "obs-remote");
+const PLUGIN_DLL = join(PLUGIN_DIR, "bin", "64bit", "obs-remote.dll");
+const PLUGIN = typeof __PLUGIN__ !== "undefined" ? __PLUGIN__ : "";
 
 function log(...a) {
   const line = `${new Date().toISOString().replace("T", " ").slice(0, 19)} ${a.join(" ")}`;
@@ -55,7 +60,7 @@ function relayFromArgs() {
 }
 
 
-/** Windows "Apps & features" entry + Start menu shortcuts, so the program can be opened, quit and removed like any other. */
+/** Windows "Apps & features" entry, so OBS Remote can be removed like any other program. */
 function registerWithWindows() {
   const reg = (name, type, value) => execFileSync("reg", ["add", UNINSTALL_KEY, "/v", name, "/t", type, "/d", String(value), "/f"], { stdio: "ignore", windowsHide: true });
   try {
@@ -65,19 +70,10 @@ function registerWithWindows() {
     reg("NoModify", "REG_DWORD", 1); reg("NoRepair", "REG_DWORD", 1);
     reg("EstimatedSize", "REG_DWORD", Math.round(statSync(INSTALLED).size / 1024));
   } catch { /* the program still works without the Apps list entry */ }
-  try {
-    mkdirSync(MENU_DIR, { recursive: true });
-    const ps = [APP, "Quit " + APP, "Uninstall " + APP].map((name, i) => {
-      const arg = ["open", "quit", "uninstall"][i];
-      return `$l=$w.CreateShortcut('${join(MENU_DIR, name + ".lnk").replace(/'/g, "''")}');$l.TargetPath='${INSTALLED.replace(/'/g, "''")}';$l.Arguments='${arg}';$l.IconLocation='${INSTALLED.replace(/'/g, "''")},0';$l.Save()`;
-    });
-    execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "$w=New-Object -ComObject WScript.Shell;" + ps.join(";")], { stdio: "ignore", windowsHide: true });
-  } catch { /* shortcuts are a convenience */ }
 }
 
 function unregisterFromWindows() {
   try { execFileSync("reg", ["delete", UNINSTALL_KEY, "/f"], { stdio: "ignore", windowsHide: true }); } catch { /* not there */ }
-  try { rmSync(MENU_DIR, { recursive: true, force: true }); } catch { /* not there */ }
 }
 
 /** First install asks how phones should reach this computer; an update keeps the earlier answer. */
@@ -97,6 +93,55 @@ async function pickMode() {
   rl.close();
   say();
   return a.trim() === "2" ? "local" : "cloud";
+}
+
+function obsExe() {
+  let dir = String.raw`C:\Program Files\obs-studio`;
+  try { dir = /REG_SZ\s+(.+)/.exec(execFileSync("reg", ["query", String.raw`HKLM\SOFTWARE\OBS Studio`, "/ve"], { encoding: "utf8", windowsHide: true }))[1].trim(); } catch { /* default path */ }
+  const exe = join(dir, "bin", "64bit", "obs64.exe");
+  return existsSync(exe) ? exe : null;
+}
+
+function startObs() {
+  const exe = obsExe();
+  if (!exe) return false;
+  spawn(exe, [], { cwd: dirname(exe), detached: true, stdio: "ignore" }).unref(); // OBS needs its own folder as cwd
+  return true;
+}
+
+/** OBS keeps its settings in memory and writes them on exit, so the dock and WebSocket settings need it closed. */
+async function waitForObsToClose() {
+  if (!obsRunning() || !process.stdin.isTTY) return false;
+  say("     OBS is open. Close OBS to continue; this window waits for it.");
+  const end = Date.now() + 15 * 60_000;
+  while (obsRunning() && Date.now() < end) await new Promise((r) => setTimeout(r, 1000));
+  await new Promise((r) => setTimeout(r, 1500)); // let OBS finish writing its settings
+  return !obsRunning();
+}
+
+/** A plugin file OBS has loaded can't be overwritten or deleted, only renamed; the renamed copies go next time. */
+function retirePlugin() {
+  const bin = dirname(PLUGIN_DLL);
+  try { for (const f of readdirSync(bin)) if (f.endsWith(".old")) try { rmSync(join(bin, f)); } catch { /* still loaded */ } } catch { /* no folder yet */ }
+  try { renameSync(PLUGIN_DLL, `${PLUGIN_DLL}.${Date.now()}.old`); } catch { /* not there */ }
+}
+
+function installPlugin() {
+  if (!PLUGIN) throw new Error("this build has no OBS plugin inside (build it with npm run build in agent/).");
+  mkdirSync(dirname(PLUGIN_DLL), { recursive: true });
+  retirePlugin();
+  writeFileSync(PLUGIN_DLL, Buffer.from(PLUGIN, "base64"));
+}
+
+/** True when the folder is gone; false when OBS is open and has the plugin loaded (it is then renamed so OBS skips it). */
+function removePlugin() {
+  retirePlugin();
+  try { rmSync(PLUGIN_DIR, { recursive: true, force: true }); return true; } catch { return false; }
+}
+
+function removeOldVersionBits() {
+  try { rmSync(STARTUP_VBS, { force: true }); } catch { /* not there */ }
+  try { rmSync(MENU_DIR, { recursive: true, force: true }); } catch { /* not there */ }
 }
 
 function startHidden(notify = false) {
@@ -119,6 +164,7 @@ async function install() {
 
   say("1/5  Stopping any running copy");
   killAgents();
+  removeOldVersionBits();
   await new Promise((r) => setTimeout(r, 400));
 
   say("2/5  Copying program files");
@@ -130,40 +176,37 @@ async function install() {
   const cfg = await ensureRegistered({ relay, key: opt("key"), mode });
   if (prev.room !== cfg.room) say(`     new room ${cfg.room}`);
 
-  say("4/5  Setting up OBS");
+  say("4/5  Adding OBS Remote to OBS");
+  const closedObs = await waitForObsToClose();
+  installPlugin();
+  say("     Installed the plugin: OBS Remote now starts and stops with OBS.");
   const ws = readObsWsConfig();
-  if (ws?.enabled) say("     OBS WebSocket server is already on — leaving your settings alone.");
-  else if (obsRunning()) say("     OBS is running, so its settings can't be changed now.\n     Easiest: close OBS and run this installer again.\n     Or in OBS: Tools → WebSocket Server Settings → enable the server.");
+  if (ws?.enabled) say("     OBS WebSocket server is already on, leaving your settings alone.");
+  else if (obsRunning()) say("     OBS is running, so its WebSocket setting can't be changed now.\n     In OBS: Tools → WebSocket Server Settings → enable the server.");
   else { enableObsWebSocket(); say("     Enabled the WebSocket server (port 4455) with a random password."); }
   if (obsRunning()) say("     The OBS Remote dock could not be added while OBS is open (see below).");
   else if (setObsDock(`http://127.0.0.1:${SETUP_PORT}/dock`)) say('     Added the "OBS Remote" dock to OBS (Docks menu).');
   else say("     The OBS Remote dock is already in OBS.");
 
-  say("5/5  Starting automatically with Windows");
-  if (process.env.OBSR_NO_STARTUP === "1") say("     (skipped: OBSR_NO_STARTUP)");
-  else {
-    mkdirSync(dirname(STARTUP_VBS), { recursive: true });
-    writeFileSync(STARTUP_VBS, `' ${APP}: starts the background agent without a window.\r\nCreateObject("WScript.Shell").Run """${INSTALLED}"" run", 0, False\r\n`);
-  }
-
-  say("     Added to Windows Apps list and the Start menu.");
+  say("5/5  Adding OBS Remote to the Windows Apps list");
   registerWithWindows();
 
-  startHidden(true);
-  const up = await waitFor(alreadyRunning, 8000);
   say();
-  if (up) {
-    say("Done. Nothing was opened in your browser.");
-    say("In OBS: Docks → OBS Remote (QR code and the control-page button). Right-click the tray icon near the clock to open or quit.");
-  } else say(`The agent did not start. See ${LOG_FILE}`);
-  if (obsRunning()) say(`\nOBS is open right now. Close it and run this installer once more to add the dock,\nor in OBS use Docks → Custom Browser Docks → name "OBS Remote", URL http://127.0.0.1:${SETUP_PORT}/dock`);
+  if (obsRunning()) {
+    say("Done. Restart OBS to load OBS Remote.");
+    say(`To add the dock by hand: Docks → Custom Browser Docks → name "OBS Remote", URL http://127.0.0.1:${SETUP_PORT}/dock`);
+  } else if (process.env.OBSR_NO_OBS !== "1" && startObs()) {
+    say(`Done. ${closedObs ? "Opening OBS again" : "Opening OBS"}: the QR code is in the OBS Remote dock (Docks → OBS Remote).`);
+  } else say("Done. Open OBS: the QR code is in the OBS Remote dock (Docks → OBS Remote, or Tools → OBS Remote).");
 }
 
 function uninstall() {
   say(`Removing ${APP}\n`);
   killAgents();
-  try { rmSync(STARTUP_VBS, { force: true }); say("- removed startup entry"); } catch { /* */ }
-  unregisterFromWindows(); say("- removed Start menu shortcuts and the Apps list entry");
+  removeOldVersionBits();
+  if (removePlugin()) say("- removed the OBS plugin");
+  else say("- OBS is open: the plugin is switched off and its folder goes after the next uninstall or reinstall");
+  unregisterFromWindows(); say("- removed the Apps list entry");
   if (obsRunning()) say("- OBS is open: remove the OBS Remote dock yourself (Docks → Custom Browser Docks)");
   else if (setObsDock(null)) say("- removed the OBS dock");
   if (flag("keep-data")) say(`- kept ${DIR}`);
@@ -193,10 +236,15 @@ async function run() {
     if (flag("open")) openBrowser(`http://127.0.0.1:${SETUP_PORT}/`);
     return log("agent already running");
   }
-  log(`starting (pid ${process.pid})`);
-  const agent = await runAgent({ log, open: flag("open"), notify: flag("notify"), onQuit: (o) => { if (o.noStartup) rmSync(STARTUP_VBS, { force: true }); },
+  const hosted = flag("hosted");
+  const parent = Number(opt("parent")) || 0;
+  log(`starting (pid ${process.pid}${hosted ? ", inside OBS" : ""})`);
+  const agent = await runAgent({ log, open: flag("open"), notify: flag("notify"), hosted,
+    restartArgs: hosted ? ["--hosted", ...(parent ? ["--parent", String(parent)] : [])] : [], onQuit: (o) => { if (o.noStartup) rmSync(STARTUP_VBS, { force: true }); },
     onUninstall: () => spawn(INSTALLED, ["uninstall", "--quiet"], { detached: true, stdio: "ignore", windowsHide: true }).unref() });
   for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => { agent.stop(); process.exit(0); });
+  // The plugin's job object already ends us with OBS; this covers the case where Windows refused the job.
+  if (parent) setInterval(() => { try { process.kill(parent, 0); } catch { log("OBS closed"); agent.stop(); process.exit(0); } }, 2000).unref();
 }
 
 async function pause() {
@@ -224,8 +272,9 @@ try {
   else if (!cmd) {
     // Double-click: installed copy opens the setup page, anything else installs.
     if (existsSync(INSTALLED) && basename(process.execPath).toLowerCase() === EXE_NAME) {
-      if (!(await alreadyRunning())) { startHidden(true); await waitFor(alreadyRunning, 8000); }
-      process.exit(0); // the tray icon (near the clock) is the way in; no browser pops up
+      if (await alreadyRunning()) openBrowser(`http://127.0.0.1:${SETUP_PORT}/`);
+      else { say("OBS Remote runs inside OBS. Open OBS, then Docks → OBS Remote (or Tools → OBS Remote)."); await pause(); }
+      process.exit(0);
     }
     await install();
     await pause();

@@ -22,11 +22,22 @@ const pub = join(root, "../relay/public");
 const assets = Object.fromEntries(readdirSync(pub).filter((f) => /\.(html|js|css|svg|webmanifest|png|ico)$/.test(f)).map((f) => [f, readFileSync(join(pub, f)).toString("base64")]));
 const ui = Object.fromEntries(["html", "js", "css"].map((e) => [e === "html" ? "page" : e === "js" ? "script" : "style", readFileSync(join(root, "src/ui", `setup.${e}`), "utf8")]));
 
+// The OBS plugin (a 16 KB DLL that starts the agent with OBS). Rebuilt when MinGW gcc is on PATH, otherwise the
+// committed plugin/obs-remote.dll is used.
+const dll = join(root, "plugin/obs-remote.dll");
+try {
+  execFileSync("gcc", ["-shared", "-O2", "-s", "-Wall", "-o", dll, join(root, "plugin/obs-remote.c"), "-lws2_32", "-lshell32", "-static-libgcc"], { stdio: "inherit" });
+} catch (e) {
+  if (e.code !== "ENOENT") throw e;
+  console.log("gcc not found: using the committed plugin/obs-remote.dll");
+}
+const plugin = readFileSync(dll).toString("base64");
+
 await build({
   entryPoints: [join(root, "src/main.js")],
   outfile: join(dist, "obs-remote.cjs"),
   bundle: true, platform: "node", format: "cjs", target: "node24", minify: false, logLevel: "error",
-  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets) },
+  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin) },
 });
 
 writeFileSync(join(dist, "sea-config.json"), JSON.stringify({ main: join(dist, "obs-remote.cjs"), output: join(dist, "sea.blob"), disableExperimentalSEAWarning: true }));

@@ -34,6 +34,7 @@ function paint(s) {
   $("#pwForm").hidden = o.state !== "auth";
   if (document.activeElement !== $("#presentKeys")) $("#presentKeys").checked = !!s.presentKeys;
 
+  $("#btnQuit").hidden = !!s.hosted; // inside OBS it starts and stops with OBS
   $("#modeCard").hidden = !s.canSwitch;
   $("#modeCloudName").textContent = s.cloudHost || "Online server";
   for (const b of document.querySelectorAll("#modeCard [data-mode]")) b.setAttribute("aria-checked", String(b.dataset.mode === s.mode));
