@@ -79,7 +79,7 @@ async function limited(rl: RateLimit | undefined, request: Request): Promise<boo
 }
 
 
-const PAGES: Record<string, string> = { "/": "/index.html", "/app": "/index.html", "/app/": "/index.html" };
+const PAGES: Record<string, string> = { "/": "/index.html", "/app": "/index.html" };
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -132,6 +132,8 @@ export default {
     if (path === "/download/OBS-Remote-Setup.exe" && request.method === "GET") return env.INSTALLER_URL ? Response.redirect(env.INSTALLER_URL, 302) : new Response("installer not published", { status: 404 });
 
     // The control app is served at "/" and "/app" (the agent's own relay serves it at "/" too).
+    // "/app/" would load the app with its files looked up under /app/, so it goes to "/app" (keeping ?demo and #pair=).
+    if (path === "/app/") return Response.redirect(new URL("/app" + url.search, request.url).toString(), 301);
     const page = PAGES[path];
     const res = await env.ASSETS.fetch(page ? new Request(new URL(page, request.url), request) : request);
     const out = new Response(res.body, res);

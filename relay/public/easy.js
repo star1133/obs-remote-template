@@ -136,7 +136,8 @@ export function createEasy(api) {
     const top = $(".ez-bar").getBoundingClientRect().height;
     const strip = d.studioMode ? 4.6 * parseFloat(getComputedStyle(mv).fontSize) : 0;
     const gap = parseFloat(getComputedStyle(mv).rowGap) || 0;
-    const room = innerHeight - top - strip - 24 - gap * (g.rows + 1);
+    const below = parseFloat(getComputedStyle($("#easy")).paddingBottom) || 24; // includes the home-bar inset
+    const room = innerHeight - top - strip - below - gap * (g.rows + 1);
     mv.style.setProperty("--cols", String(g.cols));
     mv.style.setProperty("--k", String(g.k));
     mv.style.setProperty("--mv-max", `${Math.max(560, Math.floor((room * g.cols * 16) / (9 * g.rows)))}px`);

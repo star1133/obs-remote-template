@@ -8,7 +8,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>OBS Remote</title>
-<link rel="manifest" href="manifest.webmanifest">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="OBS Remote">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="alternate icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -24,7 +25,7 @@
   <form id="pairForm" autocomplete="off">
     <div class="mark" data-icon="logo"></div>
     <h1>OBS Remote</h1>
-    <p class="lede">On the computer running OBS, open the <b>OBS Remote</b> setup page (double-click the program) and scan its QR code, or type the code shown there.</p>
+    <p class="lede">On the computer running OBS, open <b>OBS → Tools → OBS Remote</b>, press <b>Show code</b> and scan the QR code with this device&rsquo;s camera, or type the code shown there.</p>
     <label for="pairInput">Pairing code</label>
     <input id="pairInput" inputmode="text" autocapitalize="characters" spellcheck="false" placeholder="ABCDEFGHIJ-K7QM-4XPA-9TRB" aria-describedby="pairErr">
     <button class="primary" type="submit">Connect</button>
@@ -287,6 +288,12 @@
     <fieldset id="computers"><legend>Computers</legend>
       <p class="hint">Control several OBS computers from this one screen. Switch between them, or turn on Mirror so a scene change, TAKE or slide flip also happens on the others.</p>
       <button type="button" id="btnAddMachine">Add another computer</button>
+    </fieldset>
+    <fieldset id="homeBox" hidden><legend>Home screen</legend>
+      <p class="hint">Open OBS Remote from an icon on your home screen: full screen like an app, no browser bar.</p>
+      <button type="button" id="btnHome" class="primary" hidden>Add to Home Screen</button>
+      <div id="homeHow"></div>
+      <p id="homeWarn" class="hint" hidden>This link is temporary: it changes every time OBS starts, so an icon for it would stop working. Scan the new QR code each time instead.</p>
     </fieldset>
     <fieldset id="shareBox" hidden><legend>Share access</legend>
       <div class="inline"><select id="inviteRole" aria-label="Access level"><option value="operator">Can control</option><option value="viewer">View only</option></select><button type="button" id="btnInvite">Create invite</button></div>

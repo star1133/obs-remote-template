@@ -5,6 +5,7 @@ import { createEasy } from "./easy.js";
 import { createMachines } from "./machines.js";
 import { createButtons } from "./buttons.js";
 import { createDock } from "./dock.js";
+import { createInstall } from "./install.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -1234,13 +1235,13 @@ async function doPair(raw) {
     const res = await fetch("/api/pair", { method: "POST", body: JSON.stringify({ room: m[1], code: m[2], name }) });
     const j = await res.json().catch(() => ({}));
     if (!res.ok) {
-      err.textContent = { bad_code: "Wrong code.", no_code: "That code expired. Generate a new one in the OBS dock.", locked: "Too many wrong tries. Generate a new code in the OBS dock." }[j.error] ?? "Pairing failed.";
+      err.textContent = { bad_code: "Wrong code.", no_code: "That code expired. Make a new one in OBS → Tools → OBS Remote.", locked: "Too many wrong tries. Make a new code in OBS → Tools → OBS Remote." }[j.error] ?? "Pairing failed.";
       return;
     }
     const auth = { room: m[1], token: j.clientToken, cid: j.cid };
     const adding = machines.count() > 0;
     machines.add(auth);
-    if (adding) switchActive(auth); else start(auth);
+    if (adding) switchActive(auth); else { start(auth); install.nudge(); }
   } catch {
     err.textContent = "Can't reach the relay.";
   }
@@ -1415,8 +1416,10 @@ const machines = createMachines({
   onSwitch: (m) => switchActive(m),
   onAdd: () => showPair("", true),
 });
+const install = createInstall({ $, h, toast, store });
 hydrate();
 bindUi();
+install.bind();
 applyLayout();
 
 if (params.has("demo")) startDemo();

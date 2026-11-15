@@ -3,7 +3,7 @@
 // tunnel restarts, so phones scan the QR code again (the setup page shows a fresh one).
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync, readFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const EXE_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe";
@@ -37,6 +37,21 @@ async function ensureBinary(dir, setStatus, log) {
   return exe;
 }
 
+/** Does the address really serve our web app? true = yes, false = something else answers, null = can't tell from here
+ *  (this computer's DNS may not know the new name yet; phones usually do). */
+async function servesApp(url) {
+  for (let i = 0; i < 8; i++) {
+    try {
+      const res = await fetch(url + "/app", { signal: AbortSignal.timeout(8000), headers: { "cache-control": "no-cache" } });
+      const body = await res.text();
+      if (res.ok && body.includes("OBS Remote")) return true;
+      if (i >= 3) return false; // a fresh link can answer 404/530 for a few seconds
+    } catch { /* not reachable from here yet */ }
+    await new Promise((r) => setTimeout(r, 2500));
+  }
+  return null;
+}
+
 export function createTunnel({ dir, port, log = () => {} }) {
   let st = { state: "starting", detail: "", url: "" }; // state: starting | download | up | down | error
   let child = null, stopped = false, timer = null, tries = 0;
@@ -49,14 +64,18 @@ export function createTunnel({ dir, port, log = () => {} }) {
     catch (e) { setStatus("error", e.message); log("tunnel: " + e.message); return retry(60000); }
     if (stopped) return;
     setStatus("starting", "Opening the public link…");
-    child = spawn(exe, ["tunnel", "--no-autoupdate", "--url", `http://127.0.0.1:${port}`], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-    let pending = "", blocked = false;
+    // Our own config file: without --config cloudflared reads %USERPROFILE%\.cloudflared\config.yml, and the ingress
+    // rules of a tunnel the user set up for something else win over --url, so the link answers 404 to everyone.
+    const conf = join(dir, "cloudflared-quick.yml");
+    try { writeFileSync(conf, "no-autoupdate: true\n"); } catch { /* keep the old one */ }
+    const me = child = spawn(exe, ["tunnel", "--config", conf, "--no-autoupdate", "--url", `http://127.0.0.1:${port}`], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    let pending = "", blocked = false, checking = false;
     const onData = (d) => {
       const text = String(d);
       const m = URL_RE.exec(text);
       if (m) { pending = m[0]; setStatus("starting", "Waiting for the link to start working…"); }
       // cloudflared says this once it is really connected; before that the address answers with an error page.
-      if (pending && /Registered tunnel connection/.test(text)) { tries = 0; blocked = false; setStatus("up", "", pending); log("public link " + pending); }
+      if (pending && !checking && /Registered tunnel connection/.test(text)) { checking = true; blocked = false; verify(me, pending); }
       if (!blocked && /x509: certificate signed by unknown authority/.test(text) && st.state !== "up") {
         blocked = true;
         setStatus("blocked", "Something on this computer (usually antivirus \"HTTPS scanning\", e.g. Avast Web Shield) is intercepting the tunnel's encrypted connection. Turn that scanning off for cloudflared.exe, or use a Cloudflare relay instead.");
@@ -72,6 +91,23 @@ export function createTunnel({ dir, port, log = () => {} }) {
       setStatus("down", `cloudflared stopped (${code}); retrying…`);
       retry();
     });
+  }
+
+  /** Show the link only once it opens our page, so phones never get a QR code that leads to an error page. */
+  async function verify(proc, url) {
+    setStatus("starting", "Checking that the link opens OBS Remote…");
+    const ok = await servesApp(url);
+    if (stopped || child !== proc) return;
+    if (ok === false) {
+      setStatus("error", "The public link opens, but not to OBS Remote (another program or a cloudflared setting on this computer answers it). Trying a new link…");
+      log("public link " + url + " does not serve the app; restarting the tunnel");
+      tries = Math.max(tries, 3);
+      try { proc.kill(); } catch { /* exit handler retries */ }
+      return;
+    }
+    tries = 0;
+    setStatus("up", "", url);
+    log("public link " + url + (ok ? "" : " (not reachable from this computer yet, so unchecked)"));
   }
 
   function retry(ms) {
