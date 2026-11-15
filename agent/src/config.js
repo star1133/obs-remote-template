@@ -13,6 +13,10 @@ export const SETUP_PORT = Number(process.env.OBSR_PORT) || 47890;
 export const BAKED = {
   relay: typeof __RELAY__ !== "undefined" ? __RELAY__ : "",
   key: typeof __REGKEY__ !== "undefined" ? __REGKEY__ : "",
+  // From source (tests) OBSR_VERSION / OBSR_UPDATE_REPO stand in for them.
+  version: typeof __VERSION__ !== "undefined" ? __VERSION__ : process.env.OBSR_VERSION || "dev",
+  /** GitHub "owner/repo" whose latest release is the update (UPDATE_REPO at build time); empty = no update button. */
+  updates: typeof __UPDATES__ !== "undefined" ? __UPDATES__ : process.env.OBSR_UPDATE_REPO || "",
 };
 
 export function loadConfig() {

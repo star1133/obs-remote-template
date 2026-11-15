@@ -11,6 +11,7 @@ import { createBridge, cleanLayout } from "./bridge.js";
 import { readFileSync, writeFileSync } from "node:fs";
 import { createRelayLink } from "./relay.js";
 import { startSetupServer } from "./setup-server.js";
+import { createUpdater } from "./update.js";
 import { existsSync } from "node:fs";
 
 /** Create the room on the relay once and remember the device token. */
@@ -114,6 +115,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
     },
   });
 
+  const updater = createUpdater({ log });
   const api = {
     cfg,
     /** The native settings window (settings/settings.c), next to this program. */
@@ -143,6 +145,8 @@ export async function runAgent({ log = console.log, open = false, notify = false
         obsWs: f ? { enabled: f.enabled, port: f.port, auth: f.auth } : null,
         customPassword: loadConfig().obsPassword != null,
         presentKeys: loadConfig().presentKeys === true,
+        version: BAKED.version,
+        update: updater.status(),
       };
     },
     /** Ask the relay for a pairing code; the answer arrives as a `pair.code` message. */
@@ -170,6 +174,9 @@ export async function runAgent({ log = console.log, open = false, notify = false
         api.stop(); process.exit(0);
       }, 200);
     },
+    checkUpdate: () => updater.check(),
+    /** Starts the download and returns at once; progress and errors show in status().update. */
+    update(opts) { updater.apply(opts).catch(() => { /* shown in the status */ }); },
     setPresentKeys(on) { const c = loadConfig(); c.presentKeys = on === true; saveConfig(c); },
     /** Quit the whole system (menu "Quit" in the tray icon). */
     quit(opts = {}) {
@@ -183,10 +190,11 @@ export async function runAgent({ log = console.log, open = false, notify = false
       try { onUninstall(); } catch (e) { log("uninstall: " + e.message); }
       setTimeout(() => { api.stop(); process.exit(0); }, 200);
     },
-    stop() { tray?.stop(); bridge.stop(); link.stop(); tunnel?.stop(); local?.stop(); server?.close(); },
+    stop() { updater.stop(); tray?.stop(); bridge.stop(); link.stop(); tunnel?.stop(); local?.stop(); server?.close(); },
   };
 
   bridge.start();
+  updater.start();
   link.start();
   const server = await startSetupServer(api, { log, open });
   // Started by the OBS plugin: OBS is the way in, so no tray icon.

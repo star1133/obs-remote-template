@@ -35,6 +35,7 @@ export function statusText(s) {
     "v=1", `host=${clean(s.host)}`, `obs=${clean(s.obs.state)}\t${clean(s.obs.detail)}`, `obsws=${b(s.obsWs?.enabled)}`,
     `relay=${clean(s.relay.state)}\t${clean(s.relay.detail)}`, `url=${clean(s.relayUrl)}`, `mode=${clean(s.mode)}`, `canSwitch=${b(s.canSwitch)}`,
     `cloudHost=${clean(s.cloudHost)}`, `hosted=${b(s.hosted)}`, `presentKeys=${b(s.presentKeys)}`, `started=${s.started}`, `room=${clean(s.room)}`,
+    `version=${clean(s.version)}`, `update=${clean(s.update.state)}	${clean(s.update.latest)}	${clean(s.update.detail)}`,
   ];
   if (s.tunnel) lines.push(`tunnel=${clean(s.tunnel.state)}\t${clean(s.tunnel.url)}\t${clean(s.tunnel.detail)}`);
   for (const d of s.devices) lines.push(`dev=${clean(d.cid)}\t${b(d.online)}\t${clean(d.role || "owner")}\t${d.created ?? 0}\t${clean(d.name)}`);
@@ -110,6 +111,8 @@ export function startSetupServer(api, { log, open }) {
       if (url.pathname === "/api/revoke") return send(res, 200, { ok: api.revoke(body.cid) });
       if (url.pathname === "/api/mode") { await api.switchMode(body.mode); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/uninstall") { send(res, 200, { ok: true }); api.uninstall(); return; }
+      if (url.pathname === "/api/update") { api.update({ reopenSettings: body.reopen === true }); return send(res, 200, { ok: true }); }
+      if (url.pathname === "/api/update-check") { await api.checkUpdate(); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/present-keys") { api.setPresentKeys(body.on === true); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/settings") { api.openSettings(); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/obs-password") { api.setObsPassword(typeof body.password === "string" ? body.password : ""); return send(res, 200, { ok: true }); }

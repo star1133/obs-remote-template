@@ -24,6 +24,8 @@
 
 แชร์ให้คนอื่น: ในหน้าควบคุม → ⚙ Settings → *Share access* → สร้างลิงก์ "ควบคุมได้" หรือ "ดูอย่างเดียว" (ใช้ได้ครั้งเดียว, 5 นาที) และกด Remove เพื่อถอนสิทธิ์ได้
 
+อัปเดต: ถ้า build ด้วย `set UPDATE_REPO=<owner>/<repo>` (repo ที่มี release ชื่อไฟล์ `OBS-Remote-Setup.exe`) หน้าต่าง OBS Remote จะแจ้งเมื่อมีรุ่นใหม่ กด **Update now** ครั้งเดียว โปรแกรมโหลดตัวติดตั้งจาก GitHub ตรวจ SHA-256 แล้วติดตั้งทับเงียบๆ โดยเก็บห้องและการจับคู่เดิมไว้ ไม่ต้องปิด OBS
+
 ถอนการติดตั้ง: Settings ของ Windows → Apps → OBS Remote หรือ `%LOCALAPPDATA%\OBS Remote\obs-remote.exe uninstall` (ลบปลั๊กอิน ไอคอน และไฟล์ทั้งหมด) หรือกด *Uninstall…* ในหน้าต่าง OBS Remote
 
 ## แบบไม่ต้องมีบัญชี Cloudflare (ลิงก์ชั่วคราว)
@@ -81,6 +83,7 @@ cd relay && npm test                               # ทดสอบ relay + โ
 cd agent && npm install && npm test                # agent ↔ OBS จำลอง ↔ relay
 cd agent && node test/dock.mjs                     # ทดสอบการเขียน/ลบ dock เก่าใน config ของ OBS (ใช้ไฟล์ชั่วคราว)
 cd agent && node test/setup-api.mjs                # หน้าต่างตั้งค่าอ่านสถานะ/รหัสจับคู่ได้ และต้องมีโทเคน
+cd agent && node test/update.mjs                   # ปุ่มอัปเดต: เทียบเวอร์ชัน, ตรวจ SHA-256, คำสั่งติดตั้งที่เก็บโหมด/relay เดิม (GitHub จำลอง)
 cd agent && RELAY_URL=http://127.0.0.1:8787 node build.mjs
 ```
 ทดสอบกับ OBS จริงแล้ว (OBS 33): snapshot ซีน/มิกเซอร์/ทรานซิชัน, Studio Mode, T-bar, พรีวิว, dock ใน OBS

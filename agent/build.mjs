@@ -51,7 +51,7 @@ await build({
   entryPoints: [join(root, "src/main.js")],
   outfile: join(dist, "obs-remote.cjs"),
   bundle: true, platform: "node", format: "cjs", target: "node24", minify: false, logLevel: "error",
-  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin), __SETTINGS__: JSON.stringify(settings) },
+  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UPDATES__: JSON.stringify(process.env.UPDATE_REPO || ""), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin), __SETTINGS__: JSON.stringify(settings) },
 });
 
 writeFileSync(join(dist, "sea-config.json"), JSON.stringify({ main: join(dist, "obs-remote.cjs"), output: join(dist, "sea.blob"), disableExperimentalSEAWarning: true }));

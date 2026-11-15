@@ -49,13 +49,14 @@ typedef struct {
   double started;
   int hasTunnel;
   wchar_t tun[24], tunUrl[200], tunDetail[160];
+  wchar_t version[24], upd[16], updVer[24], updDetail[200]; // upd: off | idle | checking | none | available | downloading | installing | error
   Dev dev[MAX_DEV];
   int ndev;
 } Status;
 
 typedef struct { int active; wchar_t code[32], room[32], url[300]; double exp; int n; unsigned char m[QR_MAX * QR_MAX]; } Pair;
 
-enum { H_NONE, H_ROLE, H_CODE, H_COPY, H_PAGE, H_MODE, H_REVOKE, H_SLIDES, H_QUIT, H_UNINSTALL, H_PWSAVE };
+enum { H_NONE, H_ROLE, H_CODE, H_COPY, H_PAGE, H_MODE, H_REVOKE, H_SLIDES, H_QUIT, H_UNINSTALL, H_PWSAVE, H_UPDATE, H_UPCHECK };
 // Which request a finished action thread answers (WM_APP_DONE wParam).
 enum { A_PAIR = 1, A_SIMPLE };
 
@@ -193,6 +194,8 @@ static void parseStatus(const char *txt, Status *s) {
     else if (!wcscmp(k, L"presentKeys")) s->presentKeys = _wtoi(v);
     else if (!wcscmp(k, L"started")) s->started = _wtof(v);
     else if (!wcscmp(k, L"room")) CPY(s->room, v);
+    else if (!wcscmp(k, L"version")) CPY(s->version, v);
+    else if (!wcscmp(k, L"update")) { fields(v, p, 3); CPY(s->upd, p[0]); CPY(s->updVer, p[1]); CPY(s->updDetail, p[2]); }
     else if (!wcscmp(k, L"tunnel")) { fields(v, p, 3); s->hasTunnel = 1; CPY(s->tun, p[0]); CPY(s->tunUrl, p[1]); CPY(s->tunDetail, p[2]); }
     else if (!wcscmp(k, L"dev") && s->ndev < MAX_DEV) {
       fields(v, p, 5);
@@ -462,6 +465,25 @@ static void paint(HDC dc, int cw, int ch) {
   swprintf(b, 600, L"%d online · %d paired", online, st.ndev);
   y = statusRow(dc, x, y, w, online ? C_OK : RGB(0x55, 0x55, 0x5b), L"Devices", b);
 
+  // a newer version: say so near the top, with the one button that installs it
+  int updAvail = !wcscmp(st.upd, L"available"), updBusy = !wcscmp(st.upd, L"downloading") || !wcscmp(st.upd, L"installing");
+  int updFailed = !wcscmp(st.upd, L"error") && st.updVer[0];
+  if (updAvail || updBusy || updFailed) {
+    if (updAvail) swprintf(b, 600, L"OBS Remote %ls is out (this computer has %ls). Updating keeps your phones paired.", st.updVer, st.version);
+    else if (!wcscmp(st.upd, L"downloading")) swprintf(b, 600, L"Downloading OBS Remote %ls… %ls", st.updVer, st.updDetail);
+    else if (updBusy) swprintf(b, 600, L"Installing OBS Remote %ls. %ls", st.updVer, st.updDetail);
+    else swprintf(b, 600, L"%ls", st.updDetail);
+    y += S(10);
+    int h = textH(dc, b, w - S(24), fBody), withBtn = updAvail || updFailed;
+    RECT box = { x, y, x + w, y + h + S(20) + (withBtn ? S(44) : 0) };
+    fillRect(dc, box, updFailed ? RGB(0x2e, 0x1d, 0x1b) : RGB(0x17, 0x24, 0x33));
+    RECT bar = { x, y, x + S(3), box.bottom };
+    fillRect(dc, bar, updFailed ? C_BAD : C_ACC);
+    para(dc, x + S(14), y + S(10), w - S(24), b, fBody, C_TEXT);
+    if (withBtn) button(dc, x + S(14), y + S(16) + h, 0, updFailed ? L"Try again" : L"Update now", B_PRIMARY, H_UPDATE, 0);
+    y = box.bottom;
+  }
+
   if (!obsOk && !obsAuth) {
     const wchar_t *hint = !st.obsws ? L"OBS's WebSocket server is switched off. In OBS: Tools → WebSocket Server Settings → tick “Enable WebSocket server”." : L"Start OBS Studio. This window updates by itself.";
     y += S(10);
@@ -591,8 +613,12 @@ static void paint(HDC dc, int cw, int ch) {
   bx = x - S(6);
   if (!st.hosted) bx = button(dc, bx, y, 0, L"Quit OBS Remote", B_QUIET, H_QUIT, 0) + S(4);
   button(dc, bx, y, 0, uninstallSure ? L"Click again to remove everything" : L"Uninstall…", B_DANGER, H_UNINSTALL, 0);
+  if (st.upd[0] && wcscmp(st.upd, L"off")) {
+    const wchar_t *lab = !wcscmp(st.upd, L"checking") ? L"Checking for updates…" : !wcscmp(st.upd, L"none") ? L"Up to date · check again" : L"Check for updates";
+    button(dc, bx + textW(dc, uninstallSure ? L"Click again to remove everything" : L"Uninstall…", fBody) + S(18), y, 0, lab, B_QUIET, H_UPCHECK, 0);
+  }
   y += S(44);
-  swprintf(b, 600, L"%ls · room %ls", st.url, st.room);
+  swprintf(b, 600, L"version %ls · %ls · room %ls", st.version[0] ? st.version : L"?", st.url, st.room);
   y = para(dc, x, y, w, b, fMono, C_DIM) + S(18);
   contentH = y + scrollY;
 
@@ -650,6 +676,15 @@ static void click(int id, int arg) {
       run(A_SIMPLE, L"/api/present-keys", body);
       break;
     case H_QUIT: run(A_SIMPLE, L"/api/quit", NULL); break;
+    case H_UPDATE: // the installer closes this window and opens it again when the new version runs
+      wcscpy(st.upd, L"downloading"); st.updDetail[0] = 0;
+      run(A_SIMPLE, L"/api/update", "{\"reopen\":true}");
+      break;
+    case H_UPCHECK:
+      if (!wcscmp(st.upd, L"checking")) break;
+      wcscpy(st.upd, L"checking");
+      run(A_SIMPLE, L"/api/update-check", NULL);
+      break;
     case H_UNINSTALL:
       if (!uninstallSure) { uninstallSure = 1; SetTimer(wnd, 2, 5000, NULL); break; }
       if (MessageBoxW(wnd, L"Remove OBS Remote, its OBS plugin and the saved pairing from this computer?", L"OBS Remote", MB_YESNO | MB_ICONWARNING) == IDYES) {

@@ -19,7 +19,7 @@ const INSTALLED = join(DIR, EXE_NAME);
 const LOG_FILE = join(DIR, "agent.log");
 const UNINSTALL_KEY = String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\OBSRemote`;
 const MENU_DIR = join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs", APP);
-const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "dev";
+const VERSION = BAKED.version;
 // Earlier versions started with Windows and had Start menu shortcuts; installing or removing cleans those up.
 const STARTUP_VBS = join(process.env.APPDATA ?? "", "Microsoft", "Windows", "Start Menu", "Programs", "Startup", `${APP}.vbs`);
 // OBS 28+ also loads plugins from ProgramData, which ordinary users may write to (no admin prompt).
@@ -43,9 +43,15 @@ function log(...a) {
 const say = (s = "") => console.log(s);
 
 function obsRunning() {
+  return obsPid() > 0;
+}
+
+/** Process id of the running OBS, 0 when it is closed. */
+function obsPid() {
   try {
-    return /obs64\.exe/i.test(execFileSync("tasklist", ["/FI", "IMAGENAME eq obs64.exe", "/NH"], { encoding: "utf8", windowsHide: true }));
-  } catch { return false; }
+    const m = /"obs64\.exe","(\d+)"/i.exec(execFileSync("tasklist", ["/FI", "IMAGENAME eq obs64.exe", "/FO", "CSV", "/NH"], { encoding: "utf8", windowsHide: true }));
+    return m ? Number(m[1]) : 0;
+  } catch { return 0; }
 }
 
 function killAgents() {
@@ -217,7 +223,13 @@ async function install() {
   shortcuts(false); // nothing to open besides OBS: settings are under Tools → OBS Remote
 
   say();
-  if (obsRunning()) {
+  if (flag("update")) { // from the Update button: OBS stays as it is, the new agent takes over inside it
+    const pid = obsPid();
+    if (pid) spawn(INSTALLED, ["run", "--hosted", "--parent", String(pid)], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    if (flag("reopen-settings") && existsSync(SETTINGS_EXE)) spawn(SETTINGS_EXE, [`--port=${SETUP_PORT}`], { detached: true, stdio: "ignore" }).unref();
+    log(`updated to ${VERSION}${pid ? "" : " (OBS is closed, so it starts with OBS)"}`);
+    say(`Updated to ${VERSION}.`);
+  } else if (obsRunning()) {
     say("Done. Restart OBS to load OBS Remote.");
   } else if (process.env.OBSR_NO_OBS !== "1" && startObs()) {
     say(`Done. ${closedObs ? "Opening OBS again" : "Opening OBS"}: the QR code is under Tools → OBS Remote.`);
