@@ -66,6 +66,7 @@ export async function ensureRegistered(opts = {}) {
 
 export async function runAgent({ log = console.log, open = false, notify = false, hosted = false, restartArgs = [], onQuit = () => {}, onUninstall = () => {} } = {}) {
   const cfg = await ensureRegistered();
+  const started = Date.now(); // lets the setup page notice a restart (mode switch, OBS restart) and reload
   let devices = [];
   let local = null, tunnel = null, tray = null, linkRelay = cfg.relay;
   if (cfg.mode === "local") {
@@ -119,6 +120,7 @@ export async function runAgent({ log = console.log, open = false, notify = false
         tunnel: tunnel ? tunnel.status() : null,
         room: cfg.room,
         hosted,
+        started,
         devices,
         host: hostname(),
         obsWs: f ? { enabled: f.enabled, port: f.port, auth: f.auth } : null,

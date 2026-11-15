@@ -15,6 +15,11 @@ if (dock) document.body.classList.add("dock");
 let expiresAt = 0;
 let baseline = null; // paired-device count when the QR was shown: a new one means the scan worked
 let autoShown = false;
+let boot = null; // { started, mode } of the agent we talk to; a new start time means it restarted
+let switching = false;
+// After a mode switch the page reloads with #qr: make a QR for the new link as soon as that link exists.
+let pendingQr = location.hash === "#qr";
+if (pendingQr) history.replaceState(null, "", location.pathname);
 
 function paint(s) {
   $("#host").textContent = s.host;
@@ -76,8 +81,15 @@ function paint(s) {
     const who = s.devices.find((d) => d.online && d.created >= baseline.at - 1000) ?? s.devices[s.devices.length - 1];
     hideQr(`Connected${who ? ": " + who.name : ""}. The code is hidden.`);
   }
+  // A QR is only useful once phones can reach the link (in local mode the tunnel takes a few seconds).
+  const ready = s.relay.state === "up" && !!s.relayUrl;
+  if (pendingQr) {
+    $("#pairedMsg").textContent = "Making a QR code for the new connection…";
+    $("#pairedMsg").hidden = false;
+    if (ready) { pendingQr = false; autoShown = true; $("#btnCode").click(); }
+  }
   // First run inside OBS: nobody has paired yet, so show the QR straight away.
-  if (dock && !autoShown && s.devices.length === 0 && s.relay.state === "up") { autoShown = true; $("#btnCode").click(); }
+  if (dock && !autoShown && s.devices.length === 0 && ready) { autoShown = true; $("#btnCode").click(); }
   $("#btnCode").textContent = $("#pairBox").hidden ? (s.devices.length ? "Add another device" : "Show code") : "New code";
 }
 
@@ -94,6 +106,15 @@ function hideQr(msg) {
 async function poll() {
   try {
     const s = await (await fetch("/api/status")).json();
+    // The agent restarted: this page's token no longer works and the QR points at the old link. Start fresh,
+    // with a new QR when one was showing or the mode just changed.
+    if (boot && s.started !== boot.started) {
+      const wantQr = switching || s.mode !== boot.mode || !$("#pairBox").hidden;
+      history.replaceState(null, "", location.pathname + (wantQr ? "#qr" : ""));
+      location.reload();
+      return;
+    }
+    boot = { started: s.started, mode: s.mode };
     paint(s);
   } catch {
     $("#obsTxt").textContent = "the agent stopped";
@@ -157,8 +178,10 @@ $("#presentKeys").addEventListener("change", async (e) => { await post("/api/pre
 for (const b of document.querySelectorAll("#modeCard [data-mode]")) {
   b.addEventListener("click", async () => {
     if (b.getAttribute("aria-checked") === "true") return;
-    $("#modeMsg").textContent = "Switching… this page reconnects in a few seconds. Phones paired in the other mode will need no new scan when you come back.";
-    try { await post("/api/mode", { mode: b.dataset.mode }); } catch (e) { $("#modeMsg").textContent = e.message; }
+    $("#modeMsg").textContent = "Switching… a new QR code appears in a few seconds. Phones paired in the other mode will need no new scan when you come back.";
+    hideQr("");
+    switching = true;
+    try { await post("/api/mode", { mode: b.dataset.mode }); } catch (e) { switching = false; $("#modeMsg").textContent = e.message; }
   });
 }
 $("#btnQuit").addEventListener("click", async () => {
