@@ -202,7 +202,7 @@ async function install() {
   const closedObs = await waitForObsToClose();
   installPlugin();
   say("     Installed the plugin: OBS Remote now starts and stops with OBS.");
-  if (installSettings()) say("     Installed the settings window: OBS → Tools → OBS Remote, or \"OBS Remote\" on the desktop.");
+  if (installSettings()) say("     Installed the settings window: OBS → Tools → OBS Remote.");
   // YouTube to OBS (1.3) is gone: its Chrome profile and extension folder go too.
   for (const old of ["youtube-browser", "chrome-extension"]) try { rmSync(join(DIR, old), { recursive: true, force: true }); } catch { /* still open */ }
   const ws = readObsWsConfig();
