@@ -76,6 +76,11 @@ input:focus, select:focus, .btn:focus-visible { outline: 2px solid #e8e6e099; ou
 .seg .btn span { font-size: 12px; color: var(--dim); }
 .seg .btn[aria-checked="true"] { border-color: var(--acc); box-shadow: inset 0 0 0 1px var(--acc); }
 
+.yt-btns { margin-top: 10px; }
+.yt-own { margin-top: 6px; padding-left: 0; }
+.steps { margin: 12px 0 0; padding-left: 20px; display: grid; gap: 4px; }
+.steps code { word-break: break-all; font-size: 12px; }
+
 .app { display: flex; gap: 6px; padding-bottom: 0; }
 footer { font: 11px var(--mono); margin-top: 18px; word-break: break-all; }
 code { font-family: var(--mono); }

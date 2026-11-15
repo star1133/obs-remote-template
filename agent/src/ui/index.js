@@ -5,4 +5,4 @@ const read = (f) => readFileSync(new URL(f, import.meta.url), "utf8");
 
 export const ui = typeof __UI__ !== "undefined"
   ? __UI__
-  : { page: read("./setup.html"), script: read("./setup.js"), style: read("./setup.css") };
+  : { page: read("./setup.html"), script: read("./setup.js"), style: read("./setup.css"), ytPage: read("./yt.html"), ytScript: read("./yt.js"), ytStyle: read("./yt.css") };

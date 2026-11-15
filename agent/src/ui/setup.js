@@ -56,6 +56,15 @@ function paint(s) {
     $("#tunTxt").textContent = t.state === "up" ? t.url.replace("https://", "") : t.detail || "starting…";
   }
 
+  const y = s.yt;
+  if (y) {
+    $("#ytDot").dataset.s = !y.extension ? "" : y.title && y.playing ? "ok" : "wait";
+    $("#ytTxt").textContent = !y.extension ? "press Open YouTube"
+      : y.title ? `${y.playing ? "sending" : "paused"} · ${y.title}` : "Chrome ready · play a video";
+    $("#ytFolder").textContent = y.folder;
+    $("#ytSteps").hidden = !ytHelp;
+  }
+
   const online = s.devices.filter((d) => d.online).length;
   $("#devDot").dataset.s = online ? "ok" : "";
   $("#devTxt").textContent = `${online} online · ${s.devices.length} paired`;
@@ -172,6 +181,24 @@ $("#pwForm").addEventListener("submit", async (e) => {
 
 $("#btnOpen").addEventListener("click", async () => {
   try { await post("/api/open", {}); } catch (e) { $("#pairErr").textContent = e.message; }
+});
+let ytHelp = false;
+$("#btnYtExt").addEventListener("click", async () => {
+  ytHelp = true;
+  $("#ytSteps").hidden = false;
+  try { await post("/api/yt-extension", {}); } catch (e) { $("#ytMsg").textContent = e.message; }
+});
+$("#btnYtOpen").addEventListener("click", async () => {
+  $("#ytMsg").textContent = "";
+  try { await post("/api/yt-open", {}); $("#ytMsg").textContent = "Opening YouTube…"; } catch (e) { $("#ytMsg").textContent = e.message; }
+});
+$("#btnYtAdd").addEventListener("click", async () => {
+  $("#ytMsg").textContent = "";
+  try {
+    const r = await post("/api/yt-source", {});
+    $("#ytMsg").textContent = r.already ? `“${r.scene}” already has it.`
+      : `Added to “${r.scene}”.` + (r.muted ? " Its sound is muted because OBS already records Desktop Audio; unmute it in the Audio Mixer if you turn that off." : "");
+  } catch (e) { $("#ytMsg").textContent = e.message; }
 });
 $("#presentKeys").addEventListener("change", async (e) => { await post("/api/present-keys", { on: e.target.checked }); poll(); });
 

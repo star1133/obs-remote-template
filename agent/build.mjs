@@ -20,7 +20,10 @@ mkdirSync(dist, { recursive: true });
 // The phone UI travels inside the exe so the local relay can serve it.
 const pub = join(root, "../relay/public");
 const assets = Object.fromEntries(readdirSync(pub).filter((f) => /\.(html|js|css|svg|webmanifest|png|ico)$/.test(f)).map((f) => [f, readFileSync(join(pub, f)).toString("base64")]));
-const ui = Object.fromEntries(["html", "js", "css"].map((e) => [e === "html" ? "page" : e === "js" ? "script" : "style", readFileSync(join(root, "src/ui", `setup.${e}`), "utf8")]));
+const uiFile = (f) => readFileSync(join(root, "src/ui", f), "utf8");
+const ui = { page: uiFile("setup.html"), script: uiFile("setup.js"), style: uiFile("setup.css"), ytPage: uiFile("yt.html"), ytScript: uiFile("yt.js"), ytStyle: uiFile("yt.css") };
+// The Chrome extension for "YouTube to OBS": the agent writes it out for Chrome's "Load unpacked".
+const extension = Object.fromEntries(readdirSync(join(root, "extension")).map((f) => [f, readFileSync(join(root, "extension", f)).toString("base64")]));
 
 // The OBS plugin (a 16 KB DLL that starts the agent with OBS). Rebuilt when MinGW gcc is on PATH, otherwise the
 // committed plugin/obs-remote.dll is used.
@@ -37,7 +40,7 @@ await build({
   entryPoints: [join(root, "src/main.js")],
   outfile: join(dist, "obs-remote.cjs"),
   bundle: true, platform: "node", format: "cjs", target: "node24", minify: false, logLevel: "error",
-  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin) },
+  define: { __VERSION__: JSON.stringify(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version), __RELAY__: JSON.stringify(relay), __REGKEY__: JSON.stringify(key), __UI__: JSON.stringify(ui), __ASSETS__: JSON.stringify(assets), __PLUGIN__: JSON.stringify(plugin), __EXTENSION__: JSON.stringify(extension) },
 });
 
 writeFileSync(join(dist, "sea-config.json"), JSON.stringify({ main: join(dist, "obs-remote.cjs"), output: join(dist, "sea.blob"), disableExperimentalSEAWarning: true }));

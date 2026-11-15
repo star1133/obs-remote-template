@@ -1,5 +1,5 @@
 // OBS Remote agent. Double-click = install. The OBS plugin it installs starts `run --hosted` with OBS and stops it with OBS.
-//   obs-remote.exe [install|run|uninstall|status] [--relay URL] [--key KEY] [--open]
+//   obs-remote.exe [install|run|uninstall|status|youtube] [--relay URL] [--key KEY] [--open]
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, renameSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
@@ -8,6 +8,8 @@ import { basename, dirname, join } from "node:path";
 import { APP, BAKED, CONFIG_FILE, DIR, SETUP_PORT, enableObsWebSocket, loadConfig, readObsWsConfig, saveConfig, setObsDock } from "./config.js";
 import { chosenMode, ensureRegistered, runAgent } from "./agent.js";
 import { alreadyRunning, openBrowser } from "./setup-server.js";
+import { writeExtension } from "./ytcast.js";
+import { openYoutubeWindow } from "./ytwindow.js";
 
 const args = process.argv.slice(2);
 const cmd = args.find((a) => !a.startsWith("--"));
@@ -70,6 +72,29 @@ function registerWithWindows() {
     reg("NoModify", "REG_DWORD", 1); reg("NoRepair", "REG_DWORD", 1);
     reg("EstimatedSize", "REG_DWORD", Math.round(statSync(INSTALLED).size / 1024));
   } catch { /* the program still works without the Apps list entry */ }
+}
+
+/** "YouTube to OBS" on the desktop and in the Start menu: one click opens YouTube in a window that feeds OBS. */
+const YT_LINK = "YouTube to OBS.lnk";
+const psQuote = (s) => `'${String(s).replace(/'/g, "''")}'`;
+function shortcuts(add) {
+  const each = add
+    ? `$l = $s.CreateShortcut($p); $l.TargetPath = ${psQuote(INSTALLED)}; $l.Arguments = 'youtube'; $l.IconLocation = ${psQuote(INSTALLED + ",0")}; $l.Description = 'YouTube in a window that shows in OBS'; $l.WindowStyle = 7; $l.Save()`
+    : `Remove-Item -LiteralPath $p -Force -ErrorAction SilentlyContinue`;
+  const ps = `$s = New-Object -ComObject WScript.Shell; foreach ($d in @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))) { $p = Join-Path $d ${psQuote(YT_LINK)}; ${each} }`;
+  try { execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", ps], { stdio: "ignore", windowsHide: true }); return true; } catch { return false; }
+}
+
+/** The YouTube window (see ytwindow.js). Started from a shortcut it hands over to a hidden copy, so no console stays open. */
+async function youtube() {
+  if (!flag("child")) {
+    spawn(process.execPath, [...(isSea() ? [] : [process.argv[1]]), "youtube", "--child"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    return;
+  }
+  try {
+    const extensionDir = writeExtension(join(DIR, "chrome-extension"));
+    await openYoutubeWindow({ extensionDir, profileDir: join(DIR, "youtube-browser"), log });
+  } catch (e) { log("youtube window: " + e.message); }
 }
 
 function unregisterFromWindows() {
@@ -190,6 +215,7 @@ async function install() {
 
   say("5/5  Adding OBS Remote to the Windows Apps list");
   registerWithWindows();
+  if (shortcuts(true)) say('     Added "YouTube to OBS" to the desktop and the Start menu.');
 
   say();
   if (obsRunning()) {
@@ -207,6 +233,7 @@ function uninstall() {
   if (removePlugin()) say("- removed the OBS plugin");
   else say("- OBS is open: the plugin is switched off and its folder goes after the next uninstall or reinstall");
   unregisterFromWindows(); say("- removed the Apps list entry");
+  shortcuts(false); say('- removed the "YouTube to OBS" shortcuts');
   if (obsRunning()) say("- OBS is open: remove the OBS Remote dock yourself (Docks → Custom Browser Docks)");
   else if (setObsDock(null)) say("- removed the OBS dock");
   if (flag("keep-data")) say(`- kept ${DIR}`);
@@ -269,6 +296,7 @@ try {
     process.exit(0);
   }
   else if (cmd === "status") { await status(); process.exit(0); }
+  else if (cmd === "youtube") { await youtube(); process.exit(0); }
   else if (!cmd) {
     // Double-click: installed copy opens the setup page, anything else installs.
     if (existsSync(INSTALLED) && basename(process.execPath).toLowerCase() === EXE_NAME) {
@@ -279,7 +307,7 @@ try {
     await install();
     await pause();
     process.exit(0);
-  } else { say("usage: obs-remote [install | run | open | quit | uninstall | status] [--cloud | --local] [--relay URL] [--key KEY]"); process.exit(1); }
+  } else { say("usage: obs-remote [install | run | open | quit | uninstall | status | youtube] [--cloud | --local] [--relay URL] [--key KEY]"); process.exit(1); }
 } catch (e) {
   say(`\nSomething went wrong: ${e.message}`);
   log("fatal:", e.stack || e);

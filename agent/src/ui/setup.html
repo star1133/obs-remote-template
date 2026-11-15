@@ -55,6 +55,20 @@
     <button id="btnOpen" class="btn wide">Open the control page on this computer</button>
   </section>
 
+  <section class="block" aria-label="YouTube to OBS">
+    <h2>YouTube to OBS</h2>
+    <div class="row"><span class="dot" id="ytDot"></span><b>YouTube</b><span id="ytTxt" class="dim">checking…</span></div>
+    <div class="inline yt-btns"><button id="btnYtOpen" class="btn primary">Open YouTube</button><button id="btnYtAdd" class="btn">Add to OBS</button></div>
+    <p class="dim small">Press <b>Add to OBS</b> once, then play anything in the YouTube window: OBS shows that video and follows when you pick another. Also on the desktop as “YouTube to OBS”.</p>
+    <button id="btnYtExt" class="btn quiet yt-own">Use my own Chrome instead…</button>
+    <ol id="ytSteps" class="steps" hidden>
+      <li>In the Chrome page that opens, switch on <b>Developer mode</b> (top right).</li>
+      <li>Click <b>Load unpacked</b> and pick this folder: <code id="ytFolder"></code></li>
+      <li>Play a YouTube video. The tab you play last is the one OBS shows.</li>
+    </ol>
+    <p id="ytMsg" class="dim small" role="status"></p>
+  </section>
+
   <section class="block" aria-label="Connection mode" id="modeCard" hidden>
     <h2>How phones reach this computer</h2>
     <div class="seg" role="radiogroup" aria-label="Connection mode">

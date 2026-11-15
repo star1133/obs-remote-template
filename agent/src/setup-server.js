@@ -6,7 +6,7 @@ import qrcode from "qrcode-generator";
 import { SETUP_PORT } from "./config.js";
 import { ui } from "./ui/index.js";
 
-const { page, script, style } = ui;
+const { page, script, style, ytPage, ytScript, ytStyle } = ui;
 
 const HOSTS = new Set([`127.0.0.1:${SETUP_PORT}`, `localhost:${SETUP_PORT}`, `[::1]:${SETUP_PORT}`]);
 
@@ -31,10 +31,13 @@ export async function alreadyRunning() {
   } catch { return false; }
 }
 
+/** Origins of pages this server serves (the OBS browser source with /yt). */
+export const OWN_ORIGINS = new Set([...HOSTS].map((h) => "http://" + h));
+
 export function startSetupServer(api, { log, open }) {
   const csrf = randomBytes(16).toString("hex");
-  const send = (res, code, body, type = "application/json") => {
-    res.writeHead(code, { "content-type": type + "; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer", "content-security-policy": "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'" });
+  const send = (res, code, body, type = "application/json", csp = "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'") => {
+    res.writeHead(code, { "content-type": type + "; charset=utf-8", "cache-control": "no-store", "x-content-type-options": "nosniff", "referrer-policy": "no-referrer", "content-security-policy": csp });
     res.end(typeof body === "string" ? body : JSON.stringify(body));
   };
   const readJson = (req) => new Promise((resolve, reject) => {
@@ -52,6 +55,11 @@ export function startSetupServer(api, { log, open }) {
         if (url.pathname === "/" || url.pathname === "/dock") return send(res, 200, page.replace("__CSRF__", csrf), "text/html");
         if (url.pathname === "/setup.js") return send(res, 200, script, "text/javascript");
         if (url.pathname === "/setup.css") return send(res, 200, style, "text/css");
+        // YouTube to OBS: the page the OBS browser source shows (see ytcast.js)
+        // inline styles allowed: OBS puts the source's Custom CSS in as a style tag (scripts stay locked down)
+        if (url.pathname === "/yt") return send(res, 200, ytPage, "text/html", "default-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob: mediastream:; frame-ancestors 'none'");
+        if (url.pathname === "/yt.js") return send(res, 200, ytScript, "text/javascript");
+        if (url.pathname === "/yt.css") return send(res, 200, ytStyle, "text/css");
         if (url.pathname === "/api/ping") return send(res, 200, { app: "obs-remote" });
         if (url.pathname === "/api/status") return send(res, 200, api.status());
         return send(res, 404, { error: "not found" });
@@ -79,11 +87,19 @@ export function startSetupServer(api, { log, open }) {
       if (url.pathname === "/api/mode") { await api.switchMode(body.mode); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/uninstall") { send(res, 200, { ok: true }); api.uninstall(); return; }
       if (url.pathname === "/api/present-keys") { api.setPresentKeys(body.on === true); return send(res, 200, { ok: true }); }
+      if (url.pathname === "/api/yt-source") return send(res, 200, await api.addYtSource());
+      if (url.pathname === "/api/yt-open") { api.openYoutube(); return send(res, 200, { ok: true }); }
+      if (url.pathname === "/api/yt-extension") { api.openExtensionSetup(); return send(res, 200, { ok: true }); }
       if (url.pathname === "/api/obs-password") { api.setObsPassword(typeof body.password === "string" ? body.password : ""); return send(res, 200, { ok: true }); }
       return send(res, 404, { error: "not found" });
     } catch (e) {
       send(res, 500, { error: e.message });
     }
+  });
+
+  // WebSockets: only the YouTube link (ytcast.js) uses one, and only from our own loopback names.
+  server.on("upgrade", (req, socket, head) => {
+    if (!HOSTS.has(req.headers.host ?? "") || !api.yt?.upgrade(req, socket, head)) socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n");
   });
 
   return new Promise((resolve, reject) => {

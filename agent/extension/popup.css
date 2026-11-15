@@ -1,0 +1,10 @@
+body { width: 18em; margin: 0; padding: .8em 1em 1em; font: 13px/1.4 system-ui, sans-serif; color: #e8e8ea; background: #1b1c20; }
+header { display: flex; align-items: center; gap: .5em; margin-bottom: .7em; font-size: 14px; }
+header img { width: 20px; height: 20px; }
+.sw { display: flex; gap: .5em; align-items: center; cursor: pointer; }
+.row { margin: .55em 0 0; }
+.row::before { content: ""; display: inline-block; width: .6em; height: .6em; margin-right: .45em; border-radius: 50%; background: #6b6e78; }
+.row.ok::before { background: #3ecf72; }
+.row.live::before { background: #e5484d; }
+.dim { color: #9a9ca5; }
+.small { font-size: 12px; margin-top: .9em; }

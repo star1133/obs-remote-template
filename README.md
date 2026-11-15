@@ -27,6 +27,14 @@
 
 ถอนการติดตั้ง: Settings ของ Windows → Apps → OBS Remote หรือ `%LOCALAPPDATA%\OBS Remote\obs-remote.exe uninstall` (ลบปลั๊กอิน, dock และไฟล์ทั้งหมด)
 
+## YouTube เข้า OBS (ภาพจริงจากแท็บ Chrome)
+
+ส่วนขยาย Chrome ส่งภาพและเสียงของคลิป YouTube ที่เล่นอยู่ไปที่ Browser Source ใน OBS ผ่าน WebRTC ภายในเครื่อง ไม่ออกอินเทอร์เน็ต เปลี่ยนคลิปในแท็บแล้ว OBS เปลี่ยนตาม ถ้าเปิดหลายแท็บ OBS จะแสดงแท็บที่กดเล่นล่าสุด และจะซ่อนภาพกับปิดเสียงตอนโฆษณาเล่น
+1. ดับเบิลคลิก **YouTube to OBS** บนเดสก์ท็อป หรือกด **Open YouTube** ใน dock จะได้หน้าต่าง Chrome แยกที่มีส่วนขยายพร้อมแล้ว ไม่ต้องเปิด Developer mode (ต้องมี Google Chrome)
+   - อยากใช้ Chrome ตัวปกติของตัวเอง: กด **Use my own Chrome instead…** → เปิด Developer mode → **Load unpacked** → เลือกโฟลเดอร์ `%LOCALAPPDATA%\OBS Remote\chrome-extension`
+2. กด **Add to OBS**: จะเพิ่ม Browser Source ชื่อ "YouTube (Chrome)" ในซีน Preview (ถ้าเปิด Studio Mode) หรือซีนที่ออกอากาศอยู่ ถ้า OBS จับ Desktop Audio อยู่แล้ว ระบบจะปิดเสียงของ source นี้ไว้ เพื่อไม่ให้ได้ยินเสียงซ้อน
+3. เปิดคลิป YouTube ใน Chrome ความคมชัดใน OBS จะเท่ากับความละเอียดที่ YouTube เล่นอยู่
+
 ## แบบไม่ต้องมีบัญชี Cloudflare (ลิงก์ชั่วคราว)
 
 ดับเบิลคลิก **`build-installer.cmd`** แล้วเอา `OBS-Remote-Setup.exe` ไปติดตั้ง — ตัวโปรแกรมจะเป็น relay ของตัวเองบนคอมที่เปิด OBS และเปิดลิงก์สาธารณะด้วย Cloudflare Quick Tunnel (โหลด `cloudflared` ครั้งแรกอัตโนมัติ ~60 MB)
@@ -81,6 +89,8 @@ cd relay && npm install && npx wrangler dev        # relay ที่ http://127.
 cd relay && npm test                               # ทดสอบ relay + โปรโตคอล
 cd agent && npm install && npm test                # agent ↔ OBS จำลอง ↔ relay
 cd agent && node test/dock.mjs                     # ทดสอบการเพิ่ม dock (ใช้ไฟล์ชั่วคราว)
+cd agent && node test/ytcast.mjs                   # YouTube เข้า OBS: สิทธิ์การเชื่อมต่อ + ปุ่ม Add to OBS (OBS จำลอง)
+cd agent && node test/yt-chrome.mjs                # YouTube จริงใน Chrome พร้อมส่วนขยาย → หน้า /yt (ต้องมีเน็ต)
 cd agent && RELAY_URL=http://127.0.0.1:8787 node build.mjs
 ```
 ทดสอบกับ OBS จริงแล้ว (OBS 33): snapshot ซีน/มิกเซอร์/ทรานซิชัน, Studio Mode, T-bar, พรีวิว, dock ใน OBS
