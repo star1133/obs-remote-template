@@ -228,6 +228,17 @@
 
   </main>
 
+  <!-- What is on air, in a corner, while another panel is enlarged. Drag it to any corner; tap to change its size. -->
+  <div id="pip" class="pip" data-corner="br" data-size="m" hidden>
+    <div class="pip-win" id="pipWin" title="Drag to another corner · tap for another size">
+      <img id="pipImg" alt="On air" draggable="false">
+      <span class="pip-tag"><i></i><b>ON AIR</b> <span id="pipName"></span></span>
+      <span class="pip-off">no picture yet</span>
+      <button type="button" id="pipHide" class="icon pip-x" aria-label="Hide the live picture"></button>
+    </div>
+    <button type="button" id="pipShow" class="pip-show" hidden><i></i>Show live</button>
+  </div>
+
   <footer id="status" aria-label="Status">
     <span id="stLive" class="st-item" hidden><i class="led live"></i>LIVE: <time>00:00:00</time></span>
     <span id="stRec" class="st-item" hidden><i class="led rec"></i>REC: <time>00:00:00</time></span>

@@ -63,9 +63,16 @@ function applyLayout() {
   if (changed && S.data) { renderMixer(); renderSources(); renderStats(); }
   updateMixerMode();
   syncPreview();
+  fitHeight();
 }
 const detail = () => root.dataset.detail;
 const layout = () => root.dataset.layout;
+
+/** Big screens: the panels fill the window below the bars, so the preview can take every pixel the docks leave. */
+function fitHeight() {
+  const top = $("#panels").getBoundingClientRect().top + scrollY;
+  root.style.setProperty("--fit-h", `${Math.max(0, innerHeight - top)}px`);
+}
 
 function paintPv() {
   for (const id of ["#btnPv", "#ezPv"]) $(id).setAttribute("aria-pressed", String(prefs.preview !== "off"));
@@ -537,7 +544,7 @@ function updateTimes() {
     $("#bRec time").textContent = tc;
     $("#stRec time").textContent = tc + (D.record.paused ? " (paused)" : "");
   }
-  if (lastFrameAt && Date.now() - lastFrameAt > 6000) { $$(".screen, .ez-screen").forEach((x) => x.classList.remove("has")); lastFrameAt = 0; }
+  if (lastFrameAt && Date.now() - lastFrameAt > 6000) { $$(".screen, .ez-screen").forEach((x) => x.classList.remove("has")); $("#pipImg").removeAttribute("src"); lastFrameAt = 0; }
 }
 
 // ---------------------------------------------------------------------------
@@ -1085,7 +1092,59 @@ function showFrame(buf) {
   $(c.img).src = url;
   if (prev) setTimeout(() => URL.revokeObjectURL(prev), 1500);
   $(c.scr).classList.add("has");
+  if (ch === 0 && !$("#pip").hidden) {
+    $("#pipImg").src = url;
+    $("#pipName").textContent = S.data?.program ?? "";
+    $("#pip").classList.toggle("live", !!S.data?.stream?.active);
+  }
   lastFrameAt = Date.now();
+}
+
+// ---------------------------------------------------------------------------
+// Live picture in a corner while another panel is enlarged
+// ---------------------------------------------------------------------------
+
+const pipWanted = () => root.dataset.mode !== "easy" && prefs.preview !== "off" && !!$(".panel.max:not(#p-preview)");
+function paintPip() {
+  const pip = $("#pip");
+  pip.hidden = !pipWanted();
+  pip.dataset.corner = prefs.pipCorner || "br";
+  pip.dataset.size = prefs.pipSize || "m";
+  $("#pipWin").hidden = !!prefs.pipOff;
+  $("#pipShow").hidden = !prefs.pipOff;
+}
+function bindPip() {
+  const win = $("#pipWin");
+  setIcon($("#pipHide"), "close");
+  const save = () => { store.set(PREFS, prefs); paintPip(); syncPreview(); };
+  $("#pipHide").addEventListener("click", (e) => { e.stopPropagation(); prefs.pipOff = true; save(); });
+  $("#pipShow").addEventListener("click", () => { prefs.pipOff = false; save(); });
+  // Drag to any corner (it snaps to the nearest one); a tap without moving changes the size.
+  win.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button") || e.button > 0) return;
+    e.preventDefault();
+    win.setPointerCapture(e.pointerId);
+    const x0 = e.clientX, y0 = e.clientY;
+    let moved = false;
+    const move = (ev) => {
+      const dx = ev.clientX - x0, dy = ev.clientY - y0;
+      if (!moved && Math.hypot(dx, dy) < 6) return;
+      moved = true;
+      win.classList.add("dragging");
+      win.style.transform = `translate(${dx}px, ${dy}px)`;
+    };
+    const up = (ev) => {
+      win.removeEventListener("pointermove", move);
+      win.classList.remove("dragging");
+      win.style.transform = "";
+      if (moved) prefs.pipCorner = (ev.clientY < innerHeight / 2 ? "t" : "b") + (ev.clientX < innerWidth / 2 ? "l" : "r");
+      else prefs.pipSize = { s: "m", m: "l", l: "s" }[prefs.pipSize || "m"];
+      save();
+    };
+    win.addEventListener("pointermove", move);
+    win.addEventListener("pointerup", up, { once: true });
+    win.addEventListener("pointercancel", up, { once: true });
+  });
 }
 
 /** Only ask OBS for frames while a preview is actually on screen. */
@@ -1094,7 +1153,9 @@ function syncPreview() {
   const tab = $("#panels").dataset.tab;
   const easyOn = root.dataset.mode === "easy";
   root.dataset.preview = prefs.preview;
-  const visible = prefs.preview !== "off" && !document.hidden && (easyOn || (mx ? mx.id === "p-preview" : layout() === "wide" || tab === "scenes" || tab === "switch"));
+  paintPip();
+  const pipOn = pipWanted() && !prefs.pipOff;
+  const visible = prefs.preview !== "off" && !document.hidden && (easyOn || (mx ? mx.id === "p-preview" || pipOn : layout() === "wide" || tab === "scenes" || tab === "switch"));
   const want = visible && (S.linkOpen || !!link.demo);
   const rate = prefs.preview === "eco" ? "eco" : prefs.preview === "max" ? "max" : "live";
   const sig = `${want}${want && easyOn}${rate}`; // thumbnails only while the Present view is showing
@@ -1220,6 +1281,10 @@ function bindUi() {
   setIcon($("#btnDisplay"), "display");
   mine.bind();
   dock.bind();
+  bindPip();
+  // The bars above the panels (top bar, layout bar, computers, offline notice) change height: refit.
+  const ro = new ResizeObserver(() => fitHeight());
+  for (const id of ["#top", "#dkBar", "#machines", "#offline"]) ro.observe($(id));
   $$(".expand").forEach((b) => {
     setIcon(b, "expand");
     b.addEventListener("click", () => {

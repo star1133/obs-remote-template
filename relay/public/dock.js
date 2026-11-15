@@ -55,7 +55,7 @@ export function createDock({ $, $$, h, icon, prefs, save, onChange = () => {} })
       p.style.removeProperty("--rowh");
       p.classList.remove("dock-hidden", "fixed-h");
     }
-    if (!custom) { m.style.gridTemplateColumns = m.style.gridTemplateRows = m.style.gridTemplateAreas = ""; return; }
+    if (!custom) { m.style.gridTemplateColumns = m.style.gridTemplateRows = m.style.gridTemplateAreas = m.style.height = ""; return; }
     const rows = d.rows.map((r) => ({ ...r, items: r.items.filter((it) => visible(d, it.id)) })).filter((r) => r.items.length);
     for (const id of d.hidden) panel(id).classList.add("dock-hidden");
     const at = (x) => Math.round(x * 10000) / 10000;
@@ -68,7 +68,10 @@ export function createDock({ $, $$, h, icon, prefs, save, onChange = () => {} })
     const xs = [...cuts].sort((a, b) => a - b);
     m.style.gridTemplateAreas = "none";
     m.style.gridTemplateColumns = xs.slice(1).map((x, i) => `minmax(0, ${((x - xs[i]) * 1000).toFixed(1)}fr)`).join(" ");
-    m.style.gridTemplateRows = rows.map((r) => (r.h ? `${r.h}px` : "auto")).join(" ");
+    // Screen first: the row with the preview takes the height the others leave, unless it was given a height.
+    const fill = (r) => !r.h && r.items.some((it) => it.id === "p-preview");
+    m.style.gridTemplateRows = rows.map((r) => (r.h ? `${r.h}px` : fill(r) ? "minmax(15em, 1fr)" : "auto")).join(" ");
+    m.style.height = rows.some(fill) ? "" : "auto";
     rows.forEach((r, ri) => {
       const sum = r.items.reduce((a, it) => a + it.w, 0);
       let acc = 0;

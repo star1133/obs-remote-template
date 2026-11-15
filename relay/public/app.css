@@ -147,6 +147,26 @@ html[data-layout="wide"] main#panels {
   }
   html[data-layout="wide"] .panel:not(#p-preview):not(.max) .pb { max-height: 19em; overflow: auto; }
 }
+/* Screen first: on a computer the page fits the window and the preview row takes all the height the dock rows
+   leave (app.js sets --fit-h). The docks underneath stay compact and scroll inside. */
+html[data-layout="wide"] main#panels { height: var(--fit-h, auto); min-height: 30em; grid-template-rows: minmax(15em, 1fr) auto auto auto; }
+@media (min-width: 1100px) {
+  html[data-layout="wide"] main#panels { grid-template-rows: minmax(15em, 1fr) auto auto; }
+  html[data-layout="wide"] .panel:not(#p-preview):not(.max):not(.fixed-h) .pb { max-height: min(15em, 25vh); }
+  html[data-layout="wide"] :is(#p-stats, #p-log):not(.max):not(.fixed-h) .pb { max-height: min(7.5em, 10vh); }
+}
+html[data-layout="wide"] .pb { padding: .45em; }
+
+/* the monitors fill the preview panel at 16:9, as big as its width and height allow */
+html[data-layout="wide"] #p-preview:not(.max) { align-self: stretch; min-height: 0; --pv-extra: 1.7em; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) { --pv-extra: 8.2em; }
+html[data-layout="wide"] #p-preview:not(.max) .pb { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; container-type: size; padding: .3em; }
+html[data-layout="wide"] #p-preview:not(.max) .mons { min-height: 0; gap: .5em; }
+html[data-layout="wide"] #p-preview:not(.max) .mon { flex: 0 1 auto; max-width: none; width: min(100cqw, (100cqh - var(--pv-extra)) * 16 / 9); }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .mon { width: min((100cqw - 7.8em) / 2, (100cqh - var(--pv-extra)) * 16 / 9); }
+html[data-layout="wide"] #p-preview:not(.max) .screen { max-height: none; }
+html[data-layout="wide"] #p-preview:not(.max) .studio { margin-top: .4em; }
+
 #p-switcher { grid-area: swi; } #p-preview { grid-area: pre; } #p-scenes { grid-area: sce; } #p-mixer { grid-area: mix; }
 #p-sources { grid-area: src; } #p-live { grid-area: liv; } #p-stats { grid-area: sta; } #p-log { grid-area: log; }
 html[data-layout="phone"] main#panels > .panel { grid-area: auto; }
@@ -522,8 +542,6 @@ html:not([data-layout="wide"]) #btnLayout { display: none; }
 html[data-dock="custom"] main#panels > .panel { align-self: stretch; } /* a row looks like one strip of docks */
 html[data-dock="custom"] main#panels > .panel.fixed-h { align-self: stretch; height: var(--rowh); overflow: hidden; }
 html[data-dock="custom"] .panel.fixed-h:not(.max) .pb { flex: 1; min-height: 0; max-height: none !important; overflow: auto; }
-html[data-dock="custom"] #p-preview.fixed-h:not(.max) .screen { max-height: calc(var(--rowh) - 4.6em); }
-html[data-dock="custom"] #p-preview.fixed-h.is-studio:not(.max) .screen { max-height: calc(var(--rowh) - 11em); }
 
 .dk-bar { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; flex-wrap: wrap; gap: .5em 1em; padding: .5em .8em; background: #1d3553; border-bottom: 1px solid #3a6ea8; font-size: .92em; }
 .dk-bar .grow { flex: 1; }
@@ -552,3 +570,31 @@ html[data-editing] #panels .expand { display: none; }
 .dk-drop { position: fixed; z-index: 60; pointer-events: none; background: #5aa2f033; border: 2px solid #5aa2f0; border-radius: 3px; transition: all .08s; }
 .dk-drop[data-zone="swap"] { background: #5aa2f022; border-style: dashed; }
 .dk-ghost { position: fixed; z-index: 61; pointer-events: none; padding: .35em .8em; background: var(--sel); color: #fff; border-radius: 3px; box-shadow: 0 6px 18px #000a; font-size: .9em; }
+
+/* ---- Live picture in a corner while a panel is enlarged (picture in picture) ---- */
+.pip { position: fixed; z-index: 55; --pip-w: min(26vw, 22em); }
+.pip[data-size="s"] { --pip-w: min(18vw, 14em); }
+.pip[data-size="l"] { --pip-w: min(40vw, 34em); }
+html[data-layout="phone"] .pip { --pip-w: 46vw; }
+html[data-layout="phone"] .pip[data-size="s"] { --pip-w: 34vw; }
+html[data-layout="phone"] .pip[data-size="l"] { --pip-w: 70vw; }
+.pip[data-corner$="r"] { right: calc(.8em + env(safe-area-inset-right)); }
+.pip[data-corner$="l"] { left: calc(.8em + env(safe-area-inset-left)); }
+.pip[data-corner^="b"] { bottom: calc(.8em + env(safe-area-inset-bottom)); }
+.pip[data-corner^="t"] { top: calc(3.4em + env(safe-area-inset-top)); }
+.pip-win { position: relative; width: var(--pip-w); aspect-ratio: 16 / 9; background: #000; border-radius: 6px; overflow: hidden; cursor: grab; touch-action: none; user-select: none; box-shadow: 0 0 0 1px #ffffff26, 0 14px 40px #000c; transition: width .18s; }
+.pip-win.dragging { cursor: grabbing; transition: none; }
+.pip-win img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+.pip-win img:not([src]) { display: none; }
+.pip-off { position: absolute; inset: 0; display: grid; place-items: center; color: var(--faint); font-size: .8em; }
+.pip-win img[src] ~ .pip-off { display: none; }
+.pip.live .pip-win { box-shadow: 0 0 0 2px var(--live), 0 14px 40px #000c; }
+.pip-tag { position: absolute; left: .4em; top: .4em; max-width: calc(100% - 3em); display: flex; align-items: center; gap: .35em; padding: .15em .5em; border-radius: 3px; background: #000b; font-size: .72em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.pip-tag i { width: .5em; height: .5em; border-radius: 50%; background: var(--faint); flex: none; }
+.pip.live .pip-tag i { background: var(--live); animation: pulse 1.2s infinite; }
+.pip-tag b { font-weight: 700; letter-spacing: .08em; }
+.pip-x { position: absolute; top: .2em; right: .2em; width: 1.9em; min-height: 1.9em; padding: 0; border-radius: 50%; background: #000a; border: 0; opacity: .7; }
+.pip-x:hover { opacity: 1; }
+.pip-x .ic { width: 1em; height: 1em; }
+.pip-show { display: inline-flex; align-items: center; gap: .45em; min-height: 2.3em; padding: 0 .9em; border-radius: 99px; background: #000d; border: 1px solid #ffffff2a; box-shadow: 0 6px 20px #000a; }
+.pip-show i { width: .55em; height: .55em; border-radius: 50%; background: var(--live); }
