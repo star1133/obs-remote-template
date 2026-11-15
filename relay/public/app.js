@@ -613,7 +613,7 @@ function renderSwitcher() {
   $("#swStudio").setAttribute("aria-pressed", String(on));
   for (const id of ["monPvw", "xcol", "studioRow"]) $("#" + id).hidden = !on;
   $("#p-preview").classList.toggle("is-studio", on);
-  $("#pgmCap").textContent = on ? "Program" : "Preview";
+  $("#pgmCap").textContent = "Program"; // what goes out, also with Studio Mode off
   $("#swHint").textContent = on ? "" : "Studio Mode is off: clicking a scene goes straight to the screen using this transition.";
 
   const busy = !!S.tr || S.tbar > 0;
@@ -630,12 +630,21 @@ function renderSwitcher() {
     sel.replaceChildren(...D.transitions.map((t) => h("option", { value: t }, t)));
   }
   sel.value = D.transition;
+  // the same choice next to the T-bar (wide Studio Mode): style and length, picked where you slide
+  const xTr = $("#xTr");
+  if (xTr.dataset.sig !== sig) { xTr.dataset.sig = sig; xTr.replaceChildren(...D.transitions.map((t) => h("option", { value: t }, t))); }
+  xTr.value = D.transition;
+  const durs = RATES.includes(D.duration) ? RATES : [...RATES, D.duration].sort((a, b) => a - b);
+  const xDur = $("#xDur"), dsig = durs.join(",");
+  if (xDur.dataset.sig !== dsig) { xDur.dataset.sig = dsig; xDur.replaceChildren(...durs.map((ms) => h("option", { value: ms }, `${ms / 1000} s`))); }
+  xDur.value = String(D.duration);
+  xDur.disabled = kindOfT(D.transition) === "cut";
   $("#fxRates").replaceChildren(...RATES.map((ms) =>
     h("button", { role: "radio", "aria-checked": String(ms === D.duration), onclick: () => setDur(ms) }, `${ms / 1000} s`)));
   if (document.activeElement !== $("#durIn")) $("#durIn").value = D.duration;
 
-  $("#btnCut").disabled = !on || busy;
-  $("#btnAuto").disabled = !on || busy;
+  for (const id of ["#btnCut", "#btnAuto", "#btnCut2", "#btnAuto2"]) $(id).disabled = !on || busy;
+  $("#swTake").hidden = !on;
   $("#tbCancel").hidden = !(on && S.tbar > 0 && !tbDrag);
   $("#tbar").setAttribute("aria-disabled", String(!on || !!S.tr));
   buildStages();
@@ -690,6 +699,7 @@ function paintMeter() {
   $("#stgPct").textContent = running ? `${Math.round(p * 100)}%${current ? " · " + current : ""}` : "idle";
   const tb = $("#tbar");
   tb.style.setProperty("--p", S.tbar.toFixed(4));
+  tb.style.setProperty("--m", (running ? p : 0).toFixed(4)); // the fill also follows a Transition/TAKE, not only a drag
   tb.setAttribute("aria-valuenow", String(Math.round(S.tbar * 100)));
 }
 
@@ -721,27 +731,30 @@ function endTbar() {
   renderSwitcher();
 }
 
-/** Relative drag like the faders (no jump on touch), keyboard arrows, End = complete, Home = cancel. */
+/** Relative drag like the faders (no jump on touch), keyboard arrows, End = complete, Home = cancel.
+ *  Taller than wide (the column between Preview and Program) = a real switcher's T-bar: PGM at the top, pull down. */
 function bindTbar() {
   const el = $("#tbar");
   let st = null;
   el.addEventListener("pointerdown", (e) => {
     if (el.getAttribute("aria-disabled") === "true" || (e.pointerType === "mouse" && e.button !== 0)) return;
     const rect = el.getBoundingClientRect();
-    const knob = $(".tb-knob", el).getBoundingClientRect().width;
-    st = { id: e.pointerId, len: rect.width - knob || 1, last: e.clientX, x0: e.clientX, y0: e.clientY, active: e.pointerType !== "touch" };
+    const knob = $(".tb-knob", el).getBoundingClientRect();
+    const vert = rect.height > rect.width;
+    const at = (ev) => (vert ? ev.clientY : ev.clientX);
+    st = { id: e.pointerId, vert, at, len: (vert ? rect.height - knob.height : rect.width - knob.width) || 1, last: at(e), x0: e.clientX, y0: e.clientY, active: e.pointerType !== "touch" };
     el.setPointerCapture(e.pointerId);
     if (st.active) { tbDrag = true; holds.set("tbar", Infinity); el.classList.add("drag"); }
   });
   el.addEventListener("pointermove", (e) => {
     if (!st || e.pointerId !== st.id) return;
     if (!st.active) {
-      const ax = Math.abs(e.clientX - st.x0), ay = Math.abs(e.clientY - st.y0);
-      if (ax > 6 && ax > ay) { st.active = true; st.last = e.clientX; tbDrag = true; holds.set("tbar", Infinity); el.classList.add("drag"); } else return;
+      const along = Math.abs(st.vert ? e.clientY - st.y0 : e.clientX - st.x0), across = Math.abs(st.vert ? e.clientX - st.x0 : e.clientY - st.y0);
+      if (along > 6 && along > across) { st.active = true; st.last = st.at(e); tbDrag = true; holds.set("tbar", Infinity); el.classList.add("drag"); } else return;
     }
-    const fine = detail() === "full" && Math.abs(e.clientY - st.y0) > 70;
-    setTbar(S.tbar + ((e.clientX - st.last) / st.len) * (fine ? 0.2 : 1));
-    st.last = e.clientX;
+    const fine = detail() === "full" && Math.abs(st.vert ? e.clientX - st.x0 : e.clientY - st.y0) > 70;
+    setTbar(S.tbar + ((st.at(e) - st.last) / st.len) * (fine ? 0.2 : 1));
+    st.last = st.at(e);
   });
   const end = () => {
     if (!st) return;
@@ -753,9 +766,9 @@ function bindTbar() {
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
   el.addEventListener("keydown", (e) => {
-    const step = e.shiftKey ? 0.2 : 0.05;
-    if (e.key === "ArrowRight" || e.key === "ArrowUp") setTbar(S.tbar + step);
-    else if (e.key === "ArrowLeft" || e.key === "ArrowDown") setTbar(S.tbar - step);
+    const step = e.shiftKey ? 0.2 : 0.05, vert = el.clientHeight > el.clientWidth;
+    if (e.key === "ArrowRight" || e.key === (vert ? "ArrowDown" : "ArrowUp")) setTbar(S.tbar + step);
+    else if (e.key === "ArrowLeft" || e.key === (vert ? "ArrowUp" : "ArrowDown")) setTbar(S.tbar - step);
     else if (e.key === "End") S.tbar = 1;
     else if (e.key === "Home") S.tbar = 0;
     else return;
@@ -1319,8 +1332,12 @@ function bindUi() {
   $("#btnSettings").addEventListener("click", () => $("#btnDisplay").click());
   $("#btnInvite").addEventListener("click", () => link.send({ type: "invite", role: $("#inviteRole").value }));
   $("#btnCopyInvite").addEventListener("click", async () => { try { await navigator.clipboard.writeText($("#inviteLink").value); toast("Link copied", "info", 1500); } catch { $("#inviteLink").select(); } });
-  $("#btnAuto").addEventListener("click", () => rpc("StudioTake", {}));
-  $("#btnCut").addEventListener("click", () => rpc("StudioTake", { transitionName: S.data.transitions.find((t) => kindOfT(t) === "cut") ?? "Cut", duration: 0 }));
+  const take = () => rpc("StudioTake", {});
+  const cut = () => rpc("StudioTake", { transitionName: S.data.transitions.find((t) => kindOfT(t) === "cut") ?? "Cut", duration: 0 });
+  for (const id of ["#btnAuto", "#btnAuto2"]) $(id).addEventListener("click", take);
+  for (const id of ["#btnCut", "#btnCut2"]) $(id).addEventListener("click", cut);
+  $("#xTr").addEventListener("change", (e) => { S.data.transition = e.target.value; renderSwitcher(); rpc("SetCurrentSceneTransition", { transitionName: e.target.value }); });
+  $("#xDur").addEventListener("change", (e) => setDur(Number(e.target.value)));
   $("#tbCancel").addEventListener("click", () => { S.tbar = 0; renderSwitcher(); rpc("SetTBarPosition", { position: 0, release: true }); });
   bindTbar();
   $("#durIn").addEventListener("change", (e) => setDur(Number(e.target.value)));

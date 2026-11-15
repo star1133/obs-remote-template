@@ -157,6 +157,10 @@
             <div class="stg-top"><span id="stgNames" class="stg-names"></span><b id="stgPct" class="stg-pct">idle</b></div>
             <div class="stg-bar" id="stgBar"><i class="stg-head"></i></div>
           </div>
+          <div class="xpick" id="xpick">
+            <select id="xTr" aria-label="Transition style"></select>
+            <select id="xDur" aria-label="Transition length"></select>
+          </div>
           <div class="tbar-wrap">
             <span class="tb-l">PGM</span>
             <div id="tbar" class="tbar" role="slider" tabindex="0" aria-label="Manual transition (T-bar)" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i class="tb-fill"></i><i class="tb-knob"></i></div>
@@ -188,6 +192,7 @@
     <section class="panel" id="p-switcher" data-tab="switch" aria-label="Scene transitions">
       <div class="ph"><h2>Scene Transitions</h2><button class="icon expand" aria-label="Enlarge panel"></button></div>
       <div class="pb">
+        <div class="sw-take" id="swTake"><button id="btnAuto2" class="take">Transition</button><button id="btnCut2" class="cut">Cut</button></div>
         <div class="form">
           <label for="trSel">Transition</label>
           <select id="trSel"></select>

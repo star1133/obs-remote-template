@@ -615,3 +615,50 @@ html[data-layout="phone"] .pip[data-size="l"] { --pip-w: 70vw; }
 .pip-show { display: inline-flex; align-items: center; gap: .45em; min-height: 2.3em; padding: 0 .9em; border-radius: 99px; background: #000d; border: 1px solid #ffffff2a; box-shadow: 0 6px 20px #000a; }
 .pip-show i { width: .55em; height: .55em; border-radius: 50%; background: var(--live); }
 
+
+/* ---- Studio Mode on a big screen: the column between Preview and Program is a switcher's T-bar ------------
+   Transition style + length on top, then a tall T-bar (PGM at the top, pull down to PVW). Its fill also shows a
+   running Transition/TAKE (--m). Transition and Cut buttons live in the Scene Transitions dock (.sw-take). */
+.xpick { display: none; }
+.sw-take { display: grid; grid-template-columns: 1fr 1fr; gap: .4em; margin-bottom: .6em; }
+.sw-take button { min-height: 2.6em; font-weight: 600; }
+.sw-take .take { background: #2d6a3a; }
+.sw-take .take:hover { background: #378247; }
+html:not([data-layout="wide"]) .sw-take { display: none; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) { --xw: 6em; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) :is(.xcol, .stages, .tb-cancel) { display: none; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .studio { grid-row: 1 / -1; align-self: stretch; display: flex; flex-direction: column; gap: .4em; padding: var(--pv-extra) 0 .2em; max-width: none; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .xpick { display: grid; gap: .3em; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .xpick select { width: 100%; min-height: 2.5em; padding: 0 .3em; font-size: .85em; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .tbar-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: stretch; gap: .25em; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .tbar-wrap :is(.tb-l, .tb-r) { text-align: center; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .tbar { flex: 1; height: auto; min-height: 7em; --knob: 3em; touch-action: none; border-radius: 4px; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .tbar::before { left: 50%; right: auto; top: .8em; bottom: .8em; width: 3px; height: auto; margin: 0 0 0 -1.5px; }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .tb-fill { inset: 0 0 auto 0; width: auto; height: calc(var(--m, var(--p)) * 100%); background: linear-gradient(180deg, #e5483f44, #43b05c66); }
+html[data-layout="wide"] #p-preview.is-studio:not(.max) .tb-knob { left: .25em; right: .25em; width: auto; top: calc(var(--p) * (100% - var(--knob))); bottom: auto; height: var(--knob); border-radius: 3px; }
+html[data-layout="wide"] #p-preview:not(.max) .pb { padding: .5em .75em; }
+html[data-layout="wide"] .badges { display: flex; }
+.stepper { flex-wrap: wrap; }
+
+/* ---- Touch tablets (iPad) on the default layout: every control fully visible and big enough for a finger ----
+   The dock row shares the height with the monitors instead of being capped at a quarter of it, Stats and the
+   Activity log start hidden (Layout brings them back; LIVE/REC and CPU stay in the bars), PVW bus repeats the
+   Scenes dock so it goes, and touch targets are at least ~44 px. */
+@media (pointer: coarse) {
+  html[data-layout="wide"]:not([data-dock="custom"]) main#panels { grid-template-areas: "pre pre pre pre pre" "sce src mix swi liv"; grid-template-rows: minmax(12em, 1.15fr) minmax(14em, 1fr); grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.7fr) minmax(0, 1.1fr) minmax(0, .9fr); }
+  html[data-layout="wide"]:not([data-dock="custom"]) :is(#p-stats, #p-log) { display: none; }
+  html[data-layout="wide"]:not([data-dock="custom"]) .panel:not(#p-preview):not(.max) { min-height: 0; align-self: stretch; overflow: hidden; }
+  html[data-layout="wide"]:not([data-dock="custom"]) .panel:not(#p-preview):not(.max) .pb { max-height: none; flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; }
+  html[data-layout="wide"] .bus.pvw { display: none; }
+  .bus-btns { grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr)); }
+  .bus-btns button { min-height: 2.9em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; font-size: .9em; }
+  .ch .mute { min-height: 2.75em; border: 1px solid #00000066; background: var(--btn); border-radius: 4px; }
+  .ch.muted .mute { background: #5b2a27; }
+  .ch .ext button, .stepper button { min-height: 2.75em; min-width: 2.75em; }
+  .fader { --thumb: 1.3em; }
+  html[data-layout="wide"] :is(.scene, .src) { min-height: 2.9em; }
+  .src .tg { width: 2.75em; min-height: 2.75em; }
+}
+@media (pointer: coarse) and (orientation: portrait) {
+  html[data-layout="wide"]:not([data-dock="custom"]) main#panels { grid-template-areas: "pre pre pre" "sce mix swi" "src mix liv"; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); grid-template-rows: minmax(12em, .9fr) minmax(10em, 1fr) minmax(10em, 1fr); }
+}
