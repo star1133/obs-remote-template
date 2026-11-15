@@ -48,9 +48,21 @@
     </div>
     <button id="btnMine" class="modebtn" title="My buttons: make your own"><span data-icon="star"></span><span>Buttons</span></button>
     <button id="btnPv" class="icon pvbtn" aria-label="Live preview" title="Live preview on/off (turn it off while streaming to save CPU)" aria-pressed="true"></button>
+    <button id="btnLayout" class="modebtn" aria-pressed="false" title="Arrange the panels: move, resize, hide"></button>
     <button id="btnMode" class="modebtn" title="Switch to the simple Present view"><span data-icon="present"></span><span>Present</span></button>
     <button id="btnDisplay" class="icon" aria-label="Settings" aria-haspopup="dialog"></button>
   </header>
+
+  <!-- Layout editing (OBS view on big screens), driven by dock.js -->
+  <div id="dkBar" class="dk-bar" role="toolbar" aria-label="Arrange panels" hidden>
+    <b>Arrange panels</b>
+    <span class="dim">Drag a title bar onto another panel to move it &middot; drag the blue edges to resize &middot; arrow keys on a title bar or an edge for small steps</span>
+    <span id="dkHiddenWrap" class="dk-hidden-wrap" hidden>Hidden: <span id="dkHidden"></span></span>
+    <span class="grow"></span>
+    <button type="button" id="dkReset">Reset</button>
+    <button type="button" id="dkDone" class="dk-done">Done</button>
+  </div>
+  <div id="dkDrop" class="dk-drop" hidden></div>
 
   <div id="machines" class="mach" role="group" aria-label="Computers" hidden></div>
 

@@ -4,6 +4,7 @@ import { kindOf, STAGES } from "./kinds.js";
 import { createEasy } from "./easy.js";
 import { createMachines } from "./machines.js";
 import { createButtons } from "./buttons.js";
+import { createDock } from "./dock.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -54,6 +55,8 @@ function applyLayout() {
   root.dataset.size = prefs.size;
   root.dataset.mode = prefs.mode === "easy" ? "easy" : "obs";
   if (prefs.mode === "easy") { easy.build(); easy.render(); }
+  if (dock.editing && (layout !== "wide" || prefs.mode === "easy")) dock.edit(false);
+  dock.apply();
   const key = layout + detail;
   const changed = key !== layoutKey;
   layoutKey = key;
@@ -1216,6 +1219,7 @@ async function startDemo() {
 function bindUi() {
   setIcon($("#btnDisplay"), "display");
   mine.bind();
+  dock.bind();
   $$(".expand").forEach((b) => {
     setIcon(b, "expand");
     b.addEventListener("click", () => {
@@ -1339,6 +1343,7 @@ if (params.has("debug")) window.__obsr = { S, link, diag, prefs, rpc, holds, get
 
 const easy = createEasy({ S, $, $$, h, icon, rpc, toast, bindHold, kindOfT, setBtn, hydrate, directProgram, setDur, prefs });
 const mine = createButtons({ S, $, h, icon, rpc, toast, bindHold });
+const dock = createDock({ $, $$, h, icon, prefs, save: () => store.set(PREFS, prefs), onChange: () => { updateMixerMode(); syncPreview(); } });
 const machines = createMachines({
   store, h, $, toast,
   getActiveInfo: () => ({ state: $("#connDot").dataset.s || "wait", program: S.data?.program, live: !!S.data?.stream?.active }),
