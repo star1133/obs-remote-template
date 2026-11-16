@@ -452,6 +452,9 @@ legend { font-size: .8em; color: var(--dim); margin-bottom: .4em; }
 html[data-layout="wide"] #toasts { bottom: calc(3em + env(safe-area-inset-bottom)); }
 .toast { background: #4a1f1b; border: 1px solid var(--live); color: #ffd2cc; padding: .55em .85em; border-radius: 3px; font-size: .92em; animation: rise .2s ease-out; box-shadow: 0 .4em 1.4em #000a; }
 .toast.info { background: var(--btn); border-color: #000; color: var(--ink); }
+.toast { pointer-events: auto; cursor: pointer; display: flex; align-items: baseline; gap: .6em; max-width: min(36em, 100%); }
+.toast-n:empty { display: none; }
+.toast-n { flex: none; font: 700 .85em var(--font-num); padding: 0 .45em; border-radius: 99px; background: #0005; }
 
 @keyframes pulse { 50% { opacity: .35; } }
 @keyframes arm { to { box-shadow: 0 0 0 2px var(--live) inset; } }

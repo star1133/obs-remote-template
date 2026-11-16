@@ -322,7 +322,8 @@ function rpc(op, data, ctl) {
       diag.lastErr = `${op}: ${r.error}`;
       // A step of a drag that a newer value of the same control already replaced: nothing to undo or report.
       if (ctl && seqs.get(ctl) !== msg.seq) return r;
-      toast(`${ERR[r.error] ?? r.error ?? "Failed"}`);
+      // While the link is down the top bar already says so: a red "Not connected" per tap tells nothing new.
+      if (!(r.error === "offline" && !S.linkOpen)) toast(`${ERR[r.error] ?? r.error ?? "Failed"}`);
       logEv(`${op} failed: ${r.error}`, "err");
       // Roll the UI back to what OBS really has, except a fader or T-bar a finger is still on.
       for (const [k, until] of holds) if (until !== Infinity) holds.delete(k);
@@ -360,10 +361,24 @@ function flush(ctl) {
 // Small UI helpers
 // ---------------------------------------------------------------------------
 
+/** A short message at the bottom. The same message again does not stack a second copy: the one on screen counts
+ *  up (×3) and stays a little longer. At most three show at once; tap one to close it. */
 function toast(msg, kind = "err", ms = 3600) {
-  const el = h("div", { class: "toast " + (kind === "err" ? "" : kind), role: "status" }, msg);
-  $("#toasts").append(el);
-  setTimeout(() => el.remove(), ms);
+  const box = $("#toasts");
+  const same = [...box.children].find((t) => t.dataset.msg === msg);
+  if (same) {
+    const n = Number(same.dataset.n) + 1;
+    same.dataset.n = String(n);
+    same.querySelector(".toast-n").textContent = `×${n}`;
+    clearTimeout(same._t);
+    same._t = setTimeout(() => same.remove(), ms);
+    return;
+  }
+  const el = h("div", { class: "toast " + (kind === "err" ? "" : kind), role: "status", "data-msg": msg, "data-n": "1", title: "Tap to close", onclick: () => el.remove() },
+    msg, h("b", { class: "toast-n" }));
+  el._t = setTimeout(() => el.remove(), ms);
+  box.append(el);
+  while (box.children.length > 3) box.firstElementChild.remove();
 }
 
 const logBuf = [];

@@ -148,10 +148,11 @@ export function createMachines({ store, h, $, toast, getActiveInfo, onSwitch, on
   };
 
   const warned = new Map(); // room -> when we last said a mirrored computer missed a command
-  /** Say once in a while, not on every tap, that a mirrored computer is not getting the commands. */
-  function warnMirror(m, why) {
+  /** Say once in a while, not on every tap, that a mirrored computer is not getting the commands
+   *  (`once`: say it a single time; its chip keeps showing it after that). */
+  function warnMirror(m, why, once = false) {
     const now = Date.now();
-    if (now - (warned.get(m.room) ?? 0) < 30000) return;
+    if (warned.has(m.room) && (once || now - warned.get(m.room) < 30000)) return;
     warned.set(m.room, now);
     toast(`${label(m)}: ${why}`);
   }
@@ -163,7 +164,7 @@ export function createMachines({ store, h, $, toast, getActiveInfo, onSwitch, on
       const p = peers.get(room), m = find(room);
       if (!p || !m) continue;
       // Not connected (or its pairing ended): its chip already shows that, so skip it instead of failing every tap.
-      if (p.gone) { warnMirror(m, "this pairing no longer works, so it isn't mirrored. Remove it and pair again."); continue; }
+      if (p.gone) { warnMirror(m, "pairing ended, not mirrored. Tap Remove on it, then + to pair again.", true); continue; }
       if (!p.open_) { warnMirror(m, "not connected, so it isn't getting the commands"); continue; }
       if (!p.obs) { warnMirror(m, "OBS is offline there, so it isn't getting the commands"); continue; }
       p.rpc(op, data).then((r) => { if (!r.ok) toast(`${label(m)}: ${r.error === "obs_offline" ? "OBS is offline" : r.error}`); });
