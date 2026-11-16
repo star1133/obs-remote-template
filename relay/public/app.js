@@ -115,7 +115,26 @@ const S = {
 const diag = { start: Date.now(), msgs: 0, frames: 0, frameBytes: 0, reconnects: 0, rtt: null, rpcMs: null, rpcN: 0, rpcFail: 0, lastErr: "", lastClose: "" };
 
 const holds = new Map(); // control id -> ignore OBS echo until this time (Infinity while dragging)
-const held = (ctl) => (holds.get(ctl) ?? 0) > performance.now();
+/** After a fader/mute is let go: the value we sent last. OBS echoes the values of a drag in order, and on a slow link
+ *  older ones can still be on their way, so they are ignored until the echo of this one arrives (or `until`). */
+const settle = new Map(); // control id -> { v, until }
+const held = (ctl) => {
+  if ((holds.get(ctl) ?? 0) > performance.now()) return true;
+  const s = settle.get(ctl);
+  if (s && s.until > performance.now()) return true;
+  settle.delete(ctl);
+  return false;
+};
+/** An echo from OBS for a control: false while it is ours to ignore. The echo of the last value ends the wait. */
+function accept(ctl, v) {
+  const s = settle.get(ctl);
+  if (s && (typeof v === "number" ? Math.abs(v - s.v) < 0.06 : v === s.v)) { settle.delete(ctl); return !((holds.get(ctl) ?? 0) > performance.now()); }
+  return !held(ctl);
+}
+function settleOn(ctl, v) {
+  holds.delete(ctl);
+  settle.set(ctl, { v, until: performance.now() + clamp(3 * (diag.rpcMs ?? 150) + 400, 700, 2500) });
+}
 
 // A ping goes out every PING_MS. Nothing at all back for DEAD_MS after one means the connection is gone even if the
 // browser has not noticed (Wi-Fi to mobile data, a sleeping phone, a router that dropped the session). Counted from
@@ -301,11 +320,15 @@ function rpc(op, data, ctl) {
     if (!r.ok) {
       diag.rpcFail++;
       diag.lastErr = `${op}: ${r.error}`;
+      // A step of a drag that a newer value of the same control already replaced: nothing to undo or report.
+      if (ctl && seqs.get(ctl) !== msg.seq) return r;
       toast(`${ERR[r.error] ?? r.error ?? "Failed"}`);
       logEv(`${op} failed: ${r.error}`, "err");
-      holds.clear();
+      // Roll the UI back to what OBS really has, except a fader or T-bar a finger is still on.
+      for (const [k, until] of holds) if (until !== Infinity) holds.delete(k);
+      settle.clear();
       S.arming = null;
-      link.send({ type: "sync" }); // roll the UI back to what OBS really has
+      link.send({ type: "sync" });
     }
     return r;
   });
@@ -463,12 +486,12 @@ function onEvent(op, d) {
       break;
     case "InputVolumeChanged": {
       const i = D.inputs.find((x) => x.name === d.inputName);
-      if (i && !held("vol:" + i.name)) { i.volumeDb = d.inputVolumeDb; paintCh(i); }
+      if (i && accept("vol:" + i.name, d.inputVolumeDb)) { i.volumeDb = d.inputVolumeDb; paintCh(i); }
       break;
     }
     case "InputMuteStateChanged": {
       const i = D.inputs.find((x) => x.name === d.inputName);
-      if (i && !held("mute:" + i.name)) { i.muted = d.inputMuted; paintCh(i); }
+      if (i && accept("mute:" + i.name, d.inputMuted)) { i.muted = d.inputMuted; paintCh(i); }
       logEv(`${d.inputName} ${d.inputMuted ? "muted" : "unmuted"}`);
       break;
     }
@@ -619,7 +642,8 @@ function renderSwitcher() {
   const busy = !!S.tr || S.tbar > 0;
   const bus = (el, current, pick, arming, locked) => el.replaceChildren(...D.scenes.map((n) =>
     h("button", { class: (n === current ? "on " : "") + (arming && S.arming === n ? "arming" : ""), "aria-pressed": String(n === current), disabled: locked, onclick: () => pick(n) }, n)));
-  bus($("#busPgm"), D.program, directProgram, true, S.tbar > 0);
+  // PGM waits while a transition runs or the T-bar is part-way: OBS would refuse the switch and the UI would jump.
+  bus($("#busPgm"), D.program, directProgram, true, busy);
   // PVW can't change while a transition is running or the T-bar is part-way (OBS refuses it too).
   bus($("#busPvw"), D.preview, (n) => { if (n !== D.preview) rpc("SetCurrentPreviewScene", { sceneName: n }); }, false, busy || !on);
 
@@ -765,6 +789,7 @@ function bindTbar() {
   };
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  el.addEventListener("lostpointercapture", end);
   el.addEventListener("keydown", (e) => {
     const step = e.shiftKey ? 0.2 : 0.05, vert = el.clientHeight > el.clientWidth;
     if (e.key === "ArrowRight" || e.key === (vert ? "ArrowDown" : "ArrowUp")) setTbar(S.tbar + step);
@@ -855,7 +880,7 @@ function setDb(inp, db) {
 function release(inp) {
   const ctl = "vol:" + inp.name;
   flush(ctl);
-  holds.set(ctl, performance.now() + 500); // let OBS's echo of our last value settle before listening again
+  settleOn(ctl, inp.volumeDb); // OBS's echoes of the drag are still arriving; wait for the one of our last value
 }
 
 function nudge(inp, d) { setDb(inp, Math.max(-60, inp.volumeDb) + d); release(inp); }
@@ -869,7 +894,7 @@ function typeDb(inp, text) {
 }
 function toggleMute(inp) {
   inp.muted = !inp.muted;
-  holds.set("mute:" + inp.name, performance.now() + 500);
+  settleOn("mute:" + inp.name, inp.muted); // a quick double tap: the first echo must not flip it back
   paintCh(inp);
   rpc("SetInputMute", { inputName: inp.name, inputMuted: inp.muted });
 }
@@ -929,6 +954,7 @@ function bindFader(el, inp) {
   });
   el.addEventListener("pointerup", end);
   el.addEventListener("pointercancel", end);
+  el.addEventListener("lostpointercapture", end); // iPad sometimes ends a touch this way only; never leave the fader "held"
   el.addEventListener("keydown", (e) => {
     const step = e.shiftKey ? 3 : e.altKey ? 0.1 : 0.5;
     const cur = Math.max(-60, inp.volumeDb);

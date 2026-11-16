@@ -5,7 +5,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { isSea } from "node:sea";
 import { basename, dirname, join } from "node:path";
-import { APP, BAKED, CONFIG_FILE, DIR, SETUP_PORT, enableObsWebSocket, loadConfig, readObsWsConfig, saveConfig, setObsDock } from "./config.js";
+import { APP, BAKED, CONFIG_FILE, DIR, SETUP_PORT, backupConfig, enableObsWebSocket, loadConfig, readObsWsConfig, saveConfig, setObsDock } from "./config.js";
+import { newer } from "./update.js";
 import { closeLeftoverTunnel } from "./tunnel.js";
 import { chosenMode, ensureRegistered, runAgent } from "./agent.js";
 import { alreadyRunning, openBrowser } from "./setup-server.js";
@@ -70,6 +71,11 @@ function relayFromArgs() {
   return relay;
 }
 
+
+/** The version already installed here, from its Apps list entry ("" when none). */
+function installedVersion() {
+  try { return /DisplayVersion\s+REG_SZ\s+(\S+)/.exec(execFileSync("reg", ["query", UNINSTALL_KEY, "/v", "DisplayVersion"], { encoding: "utf8", windowsHide: true }))?.[1] ?? ""; } catch { return ""; }
+}
 
 /** Windows "Apps & features" entry, so OBS Remote can be removed like any other program. */
 function registerWithWindows() {
@@ -186,6 +192,17 @@ async function waitFor(fn, ms) {
 async function install() {
   say(`Installing ${APP}\n`);
   if (!isSea()) throw new Error("install only works from the built .exe (npm run build in agent/).");
+  // An old installer left open (or downloaded long ago) must not replace a newer copy: that undoes fixes and has lost
+  // pairings before. --force still allows it on purpose.
+  const have = installedVersion();
+  if (have && newer(have, VERSION) && !flag("force")) {
+    say(`This computer already has OBS Remote ${have}, which is newer than this installer (${VERSION}). Nothing was changed.`);
+    say("To update, use OBS → Tools → OBS Remote → Update now, or download the latest installer.");
+    log(`refused to install ${VERSION} over ${have}`);
+    return;
+  }
+  const saved = backupConfig(flag("update") ? "update" : "install"); // the room and paired phones, in case anything goes wrong
+  if (saved) log(`backed up the pairing to ${saved}`);
 
   const relay = relayFromArgs();
   const mode = await pickMode();

@@ -638,7 +638,8 @@ html[data-layout="wide"] #p-preview.is-studio:not(.max) .tb-fill { inset: 0 0 au
 html[data-layout="wide"] #p-preview.is-studio:not(.max) .tb-knob { left: .25em; right: .25em; width: auto; top: calc(var(--p) * (100% - var(--knob))); bottom: auto; height: var(--knob); border-radius: 3px; }
 html[data-layout="wide"] #p-preview:not(.max) .pb { padding: .5em .75em; }
 html[data-layout="wide"] .badges { display: flex; }
-.stepper { flex-wrap: wrap; }
+.stepper { flex-wrap: nowrap; min-width: 0; }
+.stepper input { min-width: 3.2em; flex: 1 1 4em; }
 
 /* ---- Touch tablets (iPad) on the default layout: every control fully visible and big enough for a finger ----
    The dock row shares the height with the monitors instead of being capped at a quarter of it, Stats and the

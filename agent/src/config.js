@@ -1,5 +1,5 @@
 // Agent config + the obs-websocket config file that ships with OBS 28+.
-import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, renameSync, readdirSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { randomBytes, randomUUID } from "node:crypto";
@@ -21,6 +21,40 @@ export const BAKED = {
 
 export function loadConfig() {
   try { return JSON.parse(readFileSync(CONFIG_FILE, "utf8")); } catch { return {}; }
+}
+
+// ---- Backups: the room and every paired phone hang on config.json (and relay-state.json in local mode) ---------
+const BACKUP_DIR = join(DIR, "backup");
+const KEEP = 10;
+
+/** Copy config.json and relay-state.json to DIR\backup before an install changes anything. Keeps the last 10. */
+export function backupConfig(reason = "install") {
+  if (!existsSync(CONFIG_FILE)) return "";
+  try {
+    mkdirSync(BACKUP_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const dir = join(BACKUP_DIR, `${stamp}-${reason}`);
+    mkdirSync(dir);
+    for (const f of ["config.json", "relay-state.json"]) if (existsSync(join(DIR, f))) writeFileSync(join(dir, f), readFileSync(join(DIR, f)), { mode: 0o600 });
+    const all = readdirSync(BACKUP_DIR).sort();
+    for (const old of all.slice(0, Math.max(0, all.length - KEEP))) rmSync(join(BACKUP_DIR, old), { recursive: true, force: true });
+    return dir;
+  } catch { return ""; }
+}
+
+/** The newest backed-up identity for this relay ({ room, deviceToken }), so a reinstall finds its room again instead
+ *  of registering a new one (which would sign out every paired phone). */
+export function backedUpIdentity(mode, relay = "") {
+  let all = [];
+  try { all = readdirSync(BACKUP_DIR).sort().reverse(); } catch { return null; }
+  for (const d of all) {
+    let c;
+    try { c = JSON.parse(readFileSync(join(BACKUP_DIR, d, "config.json"), "utf8")); } catch { continue; }
+    for (const id of [c, c.saved?.[mode]]) {
+      if (id?.room && id?.deviceToken && (id === c ? c.mode === mode : true) && (mode === "local" || id.relay === relay)) return { room: id.room, deviceToken: id.deviceToken };
+    }
+  }
+  return null;
 }
 
 export function saveConfig(c) {

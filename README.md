@@ -84,6 +84,7 @@ cd agent && npm install && npm test                # agent ↔ OBS จำลอ�
 cd agent && node test/dock.mjs                     # ทดสอบการเขียน/ลบ dock เก่าใน config ของ OBS (ใช้ไฟล์ชั่วคราว)
 cd agent && node test/setup-api.mjs                # หน้าต่างตั้งค่าอ่านสถานะ/รหัสจับคู่ได้ และต้องมีโทเคน
 cd agent && node test/update.mjs                   # ปุ่มอัปเดต: เทียบเวอร์ชัน, ตรวจ SHA-256, คำสั่งติดตั้งที่เก็บโหมด/relay เดิม (GitHub จำลอง)
+cd agent && node test/backup.mjs                   # สำรองการจับคู่ก่อนติดตั้ง และได้ห้องเดิมคืนเมื่อ config หาย
 cd agent && RELAY_URL=http://127.0.0.1:8787 node build.mjs
 ```
 ทดสอบกับ OBS จริงแล้ว (OBS 33): snapshot ซีน/มิกเซอร์/ทรานซิชัน, Studio Mode, T-bar, พรีวิว, dock ใน OBS

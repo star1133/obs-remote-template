@@ -2,7 +2,7 @@
 import { hostname } from "node:os";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { loadConfig, saveConfig, readObsWsConfig, BAKED, DIR, SETUP_PORT } from "./config.js";
+import { loadConfig, saveConfig, readObsWsConfig, backedUpIdentity, BAKED, DIR, SETUP_PORT } from "./config.js";
 import { startLocalRelay, newIdentity } from "./localrelay.js";
 import { createTunnel } from "./tunnel.js";
 import { loadAssets } from "./assets.js";
@@ -54,12 +54,15 @@ export async function ensureRegistered(opts = {}) {
 
   if (mode === "local") {
     if (cfg.mode === "local" && cfg.room && cfg.deviceToken) return cfg;
-    const id = newIdentity();
+    const id = backedUpIdentity("local") ?? newIdentity(); // a lost config.json keeps its room (and phones) from a backup
     const next = { ...cfg, mode, relay: "", room: id.room, deviceToken: id.deviceToken, created: Date.now() };
     saveConfig(next);
     return next;
   }
   if (cfg.mode === "cloud" && cfg.room && cfg.deviceToken && cfg.relay === relay) return cfg;
+  // Registering makes a new room, which signs out every paired phone: an earlier identity for this relay comes first.
+  const old = backedUpIdentity("cloud", relay);
+  if (old) { const next = { ...cfg, mode, relay, ...old }; saveConfig(next); return next; }
   const r = await register(relay, opts.key ?? BAKED.key);
   const next = { ...cfg, mode, relay, room: r.room, deviceToken: r.deviceToken, created: Date.now() };
   saveConfig(next);
