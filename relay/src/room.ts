@@ -56,6 +56,16 @@ function randomCode(): string {
 /** What the user typed, without dashes or spaces, upper case. */
 const normCode = (c: unknown): string => String(c ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
 
+/** Refuse a phone's socket in a way the browser can read: browsers only see "closed (1006)" after an HTTP error,
+ *  so accept and close at once with a code. 4001 = this pairing no longer works, 4004 = no such room. */
+export function refuseSocket(request: Request, code: number, reason: string): Response {
+  const proto = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim()).find((p) => p.startsWith("obsr."));
+  const pair = new WebSocketPair();
+  pair[1].accept();
+  pair[1].close(code, reason);
+  return new Response(null, { status: 101, webSocket: pair[0], headers: proto ? { "Sec-WebSocket-Protocol": proto } : undefined });
+}
+
 function jres(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -183,7 +193,7 @@ export class Room extends DurableObject<Env> {
     const hash = await sha256Hex(token);
     const clients = await this.clients();
     const cid = Object.keys(clients).find((id) => safeEqual(clients[id].hash, hash));
-    if (!cid) return new Response("unauthorized", { status: 401 });
+    if (!cid) return refuseSocket(request, 4001, "unauthorized");
     const perm: Role = clients[cid].role ?? "owner";
 
     const pair = new WebSocketPair();

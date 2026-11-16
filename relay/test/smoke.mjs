@@ -32,6 +32,15 @@ const next = (ws, pred, ms = 3000) => new Promise((resolve, reject) => {
   ws.waiters.push(w);
   setTimeout(() => { ws.waiters = ws.waiters.filter((x) => x !== w); reject(new Error("timeout waiting for: " + pred + "\n  queued: " + ws.msgs.map((m) => (m.op ?? m.type) + (m.error ? `(${m.error})` : "")).join(", "))); }, ms);
 });
+/** Close code of a phone socket the relay turns away (an HTTP error counts as "http"), or "" if it was let in. */
+const refusal = (url) => open(url).then(
+  (ws) => new Promise((resolve) => {
+    if (ws.msgs.some((m) => m.type === "hello")) return resolve("");
+    const t = setTimeout(() => resolve(""), 1500);
+    ws.on("message", () => { clearTimeout(t); resolve(""); ws.close(); });
+    ws.on("close", (code) => { clearTimeout(t); resolve(String(code)); });
+  }),
+  () => "http");
 const post = async (path, body, headers = {}) => {
   const r = await fetch(base + path, { method: "POST", body: JSON.stringify(body ?? {}), headers });
   return { status: r.status, json: await r.json().catch(() => ({})) };
@@ -50,8 +59,7 @@ if (KEY) {
   const fake = reg.json.room.slice(0, 6) + (reg.json.room.slice(6) === "aaaa" ? "bbbb" : "aaaa");
   const fp = await post("/api/pair", { room: fake, code: "AAAAAAAAAAAA" });
   ok(fp.status === 400 && fp.json.error === "bad_room", "pairing with a made-up room is refused before the room is touched");
-  const fw = await open(`${wsBase}/ws/client?room=${fake}&token=x`).then(() => false, () => true);
-  ok(fw, "socket to a made-up room is refused");
+  ok((await refusal(`${wsBase}/ws/client?room=${fake}&token=x`)) === "4004", "phone socket to a made-up room is closed with 4004 (no such room)");
 }
 
 const bad = await open(`${wsBase}/ws/obs?room=${reg.json.room}&token=nope`).then(() => false, () => true);
@@ -75,8 +83,7 @@ const reuse = await post("/api/pair", { room: reg.json.room, code: code.code });
 ok(reuse.status === 400, "pairing code is single use");
 
 // ---- client side ----
-const anon = await open(`${wsBase}/ws/client?room=${reg.json.room}&token=bad`).then(() => false, () => true);
-ok(anon, "client socket with wrong token is rejected");
+ok((await refusal(`${wsBase}/ws/client?room=${reg.json.room}&token=bad`)) === "4001", "phone socket with a wrong token is closed with 4001, so the app knows the pairing ended");
 
 const cl = await open(`${wsBase}/ws/client?room=${reg.json.room}&token=${paired.json.clientToken}`);
 const hello = await next(cl, (m) => m.type === "hello");
@@ -231,8 +238,7 @@ curObs = obs2;
 const closed = new Promise((r) => cl.on("close", (c) => r(c)));
 obs2.send(JSON.stringify({ type: "device.revoke", cid: paired.json.cid }));
 ok((await closed) === 4001, "revoking a device closes its socket with 4001");
-const again = await open(`${wsBase}/ws/client?room=${reg.json.room}&token=${paired.json.clientToken}`).then(() => false, () => true);
-ok(again, "revoked token can no longer connect");
+ok((await refusal(`${wsBase}/ws/client?room=${reg.json.room}&token=${paired.json.clientToken}`)) === "4001", "revoked token can no longer connect (closed with 4001)");
 
 obs2.close();
 console.log(failed ? `\n${failed} FAILED` : "\nall passed");

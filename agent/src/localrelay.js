@@ -272,7 +272,8 @@ export function startLocalRelay({ stateFile, room, deviceToken, assets, port = 0
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url, "http://x");
     const isObs = url.pathname === "/ws/obs";
-    if ((!isObs && url.pathname !== "/ws/client") || (url.searchParams.get("room") ?? "").toLowerCase() !== room || !ROOM_RE.test(room)) { socket.write("HTTP/1.1 400 Bad Request\r\n\r\n"); return socket.destroy(); }
+    const sameRoom = (url.searchParams.get("room") ?? "").toLowerCase() === room && ROOM_RE.test(room);
+    if ((!isObs && url.pathname !== "/ws/client") || (isObs && !sameRoom)) { socket.write("HTTP/1.1 400 Bad Request\r\n\r\n"); return socket.destroy(); }
     const proto = String(req.headers["sec-websocket-protocol"] ?? "").split(",").map((p) => p.trim()).find((p) => p.startsWith("obsr."));
     const token = proto ? proto.slice(5) : "";
     const hash = sha256(token);
@@ -280,7 +281,8 @@ export function startLocalRelay({ stateFile, room, deviceToken, assets, port = 0
     if (isObs) { if (!safeEqual(state.dev, hash)) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); return socket.destroy(); } }
     else {
       cid = Object.keys(state.clients).find((id) => safeEqual(state.clients[id].hash, hash));
-      if (!cid) { socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n"); return socket.destroy(); }
+      // A phone holding a dead pairing gets a close code it can read (a browser can't see an HTTP 401), like the relay.
+      if (!sameRoom || !cid) return wss.handleUpgrade(req, socket, head, (ws) => ws.close(sameRoom ? 4001 : 4004, sameRoom ? "unauthorized" : "unknown room"));
     }
     wss.handleUpgrade(req, socket, head, (ws) => {
       ws.on("message", (d, bin) => onMessage(ws, d, bin));

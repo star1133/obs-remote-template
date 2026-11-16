@@ -54,7 +54,7 @@ class Peer {
       clearInterval(this.poll); clearInterval(this.ping);
       if (this.ws !== ws) return;
       this.ws = null; this.open_ = false; this.obs = false;
-      if (e.code === 4001) this.gone = true;
+      if (e.code === 4001 || e.code === 4004) this.gone = true; // removed, or that computer was set up again: pair again
       this.onChange("status");
       if (!this.gone) this.timer = setTimeout(() => this.start(), Math.min(15000, 800 * 2 ** this.tries++));
     };
@@ -139,7 +139,22 @@ export function createMachines({ store, h, $, toast, getActiveInfo, onSwitch, on
     save(); render();
   }
 
-  const label = (m) => m.name || `Computer ${st.list.indexOf(m) + 1}`;
+  /** Two computers with the same name (an old pairing of the same PC) get a number, so the chips can be told apart. */
+  const label = (m) => {
+    const i = st.list.indexOf(m);
+    if (!m.name) return `Computer ${i + 1}`;
+    const twins = st.list.filter((o) => o.name === m.name);
+    return twins.length > 1 ? `${m.name} (${twins.indexOf(m) + 1})` : m.name;
+  };
+
+  const warned = new Map(); // room -> when we last said a mirrored computer missed a command
+  /** Say once in a while, not on every tap, that a mirrored computer is not getting the commands. */
+  function warnMirror(m, why) {
+    const now = Date.now();
+    if (now - (warned.get(m.room) ?? 0) < 30000) return;
+    warned.set(m.room, now);
+    toast(`${label(m)}: ${why}`);
+  }
 
   /** Repeat a command on every mirrored computer. Failures name the computer, so one missing scene is easy to spot. */
   function fanout(op, data) {
@@ -147,6 +162,10 @@ export function createMachines({ store, h, $, toast, getActiveInfo, onSwitch, on
     for (const room of st.mirror) {
       const p = peers.get(room), m = find(room);
       if (!p || !m) continue;
+      // Not connected (or its pairing ended): its chip already shows that, so skip it instead of failing every tap.
+      if (p.gone) { warnMirror(m, "this pairing no longer works, so it isn't mirrored. Remove it and pair again."); continue; }
+      if (!p.open_) { warnMirror(m, "not connected, so it isn't getting the commands"); continue; }
+      if (!p.obs) { warnMirror(m, "OBS is offline there, so it isn't getting the commands"); continue; }
       p.rpc(op, data).then((r) => { if (!r.ok) toast(`${label(m)}: ${r.error === "obs_offline" ? "OBS is offline" : r.error}`); });
     }
   }
@@ -166,17 +185,20 @@ export function createMachines({ store, h, $, toast, getActiveInfo, onSwitch, on
     const chips = st.list.map((m) => {
       const isActive = m.room === st.active;
       const p = peers.get(m.room);
-      const state = isActive ? info.state : p?.open_ ? (p.obs ? "ok" : "off") : "wait";
+      const gone = !isActive && !!p?.gone;
+      const state = isActive ? info.state : gone ? "off" : p?.open_ ? (p.obs ? "ok" : "off") : "wait";
       const program = isActive ? info.program : p?.program;
       const live = isActive ? info.live : p?.live;
-      const sub = state === "off" ? "OBS offline" : state === "wait" ? "connecting…" : program || "—";
+      const sub = gone ? "pairing ended" : state === "off" ? "OBS offline" : state === "wait" ? "connecting…" : program || "—";
       const mir = st.mirror.includes(m.room);
       return h("div", { class: "mach-chip" + (isActive ? " on" : "") + (mir ? " mir" : ""), "data-s": state },
         h("button", { type: "button", class: "mach-main", "aria-pressed": String(isActive), title: isActive ? "Double-click to rename" : "Switch to this computer",
           onclick: () => switchTo(m.room), ondblclick: () => rename(m.room) },
         h("span", { class: "dot", "data-s": state }),
         h("span", { class: "mach-txt" }, h("b", {}, label(m), live ? h("i", { class: "mach-live" }, "LIVE") : null), h("small", {}, sub))),
-        isActive ? null : h("button", { type: "button", class: "mach-mir", "aria-pressed": String(mir), title: mir ? "Mirroring: commands from the active computer also go here" : "Mirror the active computer's commands here",
+        isActive ? null : gone ? h("button", { type: "button", class: "mach-mir mach-rm", title: "This pairing no longer works (the device was removed, or OBS Remote was set up again on that computer). Remove it, then pair again with +.",
+          onclick: () => { remove(m.room); toast(`Removed ${label(m)}. Press + to pair it again.`, "info"); } }, "Remove")
+        : h("button", { type: "button", class: "mach-mir", "aria-pressed": String(mir), title: mir ? "Mirroring: commands from the active computer also go here" : "Mirror the active computer's commands here",
           onclick: () => toggleMirror(m.room) }, mir ? "Mirroring" : "Mirror"));
     });
     bar.replaceChildren(...chips, h("button", { type: "button", class: "mach-add", onclick: onAdd, "aria-label": "Add a computer" }, "+"));

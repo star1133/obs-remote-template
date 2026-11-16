@@ -190,7 +190,7 @@ const link = {
     diag.lastClose = `${code} ${reason}`.trim();
     diag.rtt = null;
     refreshConn();
-    if (code === 4001) return forget("This device was removed from OBS. Pair it again.");
+    if (code === 4001 || code === 4004) return forget("This device was removed from OBS, or OBS Remote was set up again on that computer. Pair it again.");
     if (this.tries === 4) toast("Can't reach OBS Remote. Check the internet connection, or forget this device and pair again.");
     const wait = Math.min(8000, 400 * 2 ** this.tries++) + Math.random() * 300;
     this.timer = setTimeout(() => this.open(), wait);
@@ -1468,6 +1468,7 @@ applyLayout();
 if (params.has("demo")) startDemo();
 else {
   machines.load();
+  machines.syncPeers(); // the other computers' status links (and mirroring) from the first load, not only after a switch
   const saved = machines.active();
   const hashPair = location.hash.match(/pair=([^&]+)/)?.[1];
   if (saved?.room && saved?.token && !hashPair) start(saved);

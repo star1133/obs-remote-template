@@ -548,6 +548,7 @@ html[data-preview="off"] .screen.has .off, html[data-preview="off"] .ez-screen.h
 .mach-live{font-style:normal;font-size:.7em;font-weight:700;background:var(--live);color:#fff;border-radius:3px;padding:0 4px}
 .mach-mir{border:0;border-left:1px solid var(--line2);border-radius:0;background:#333;font-size:.78em;padding:0 10px;color:var(--dim)}
 .mach-mir[aria-pressed="true"]{background:var(--rec);color:#1b1200;font-weight:700}
+.mach-rm{background:#4a2020;color:#ffb4ae;font-weight:700}
 .mach-add{flex:none;width:38px;border:1px dashed var(--line2);background:none;border-radius:6px;font-size:1.3em;color:var(--dim)}
 .linklike{background:none;border:0;color:var(--acc);text-decoration:underline;margin-top:8px}
 

@@ -1,4 +1,4 @@
-import { Room } from "./room";
+import { Room, refuseSocket } from "./room";
 
 export { Room };
 
@@ -124,7 +124,7 @@ export default {
       if (request.headers.get("upgrade") !== "websocket") return new Response("expected websocket", { status: 426 });
       if (await limited(env.ROOM_LIMIT, request)) return new Response("slow down", { status: 429 });
       const room = (url.searchParams.get("room") ?? "").toLowerCase();
-      if (!(await knownRoom(env, room))) return new Response("bad room", { status: 400 });
+      if (!(await knownRoom(env, room))) return path === "/ws/client" ? refuseSocket(request, 4004, "unknown room") : new Response("bad room", { status: 400 });
       return roomStub(env, room).fetch(request);
     }
 
